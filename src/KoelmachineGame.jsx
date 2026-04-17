@@ -1477,8 +1477,12 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
   const [bootjeValidated, setBootjeValidated] = useState(false);
   const [validatedHKeys, setValidatedHKeys] = useState(new Set());
 
-  // Drag state: { mode: 'place'|'reposition', target: 'highP'|'lowP'|'p1'|..., screenPos:{x,y}, coords:{h,P,T}|null }
+  // Drag state voor tools/elementen
   const [dragState, setDragState] = useState(null);
+  // Drag state voor gele h-blokken: { hKey: 'h1'|'h2'|'h3', value: number, screenPos: {x,y} }
+  const [hDragState, setHDragState] = useState(null);
+  // Welke h-blokken zijn al "gebruikt" (in drop zones geplaatst)
+  const [hDropFilled, setHDropFilled] = useState({}); // { [slotId]: hKey }
 
   useEffect(() => {
     if (points.p3 && lines.lowP && !points.p4) setPoints(prev => ({ ...prev, p4: { h: prev.p3.h, P: lines.lowP } }));
@@ -1538,6 +1542,50 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
     if (bootjeValidated) return;
     setDragState({ mode: 'reposition', target, screenPos: { x: e.clientX, y: e.clientY }, coords: null });
   };
+
+  // H-block drag (na bootje validatie)
+  const handleHBlockPointerDown = (e, hKey, value) => {
+    if (!bootjeValidated) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setHDragState({ hKey, value, screenPos: { x: e.clientX, y: e.clientY } });
+  };
+
+  // Global pointer handlers voor h-block drag
+  useEffect(() => {
+    if (!hDragState) return;
+    const onMove = (e) => {
+      setHDragState(hs => hs ? { ...hs, screenPos: { x: e.clientX, y: e.clientY } } : null);
+    };
+    const onUp = (e) => {
+      // Detect drop target via elementsFromPoint
+      const elements = document.elementsFromPoint(e.clientX, e.clientY);
+      const dropEl = elements.find(el => el.dataset && el.dataset.hDropSlot);
+      if (dropEl && hDragState) {
+        const slotId = dropEl.dataset.hDropSlot;
+        const expectedKey = dropEl.dataset.hDropExpected;
+        if (expectedKey === hDragState.hKey) {
+          // Correct drop
+          setHDropFilled(prev => ({ ...prev, [slotId]: { hKey: hDragState.hKey, value: hDragState.value, status: 'correct' } }));
+        } else {
+          // Wrong drop - brief red flash
+          setHDropFilled(prev => ({ ...prev, [slotId]: { hKey: hDragState.hKey, value: hDragState.value, status: 'wrong' } }));
+          onLoseLife?.();
+          setTimeout(() => {
+            setHDropFilled(prev => {
+              const copy = { ...prev };
+              if (copy[slotId]?.status === 'wrong') delete copy[slotId];
+              return copy;
+            });
+          }, 900);
+        }
+      }
+      setHDragState(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  }, [hDragState, onLoseLife]);
 
   const handleWissen = (what) => {
     if (bootjeValidated) return;
@@ -1611,9 +1659,38 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
     );
   };
 
+  // Preview voor h-block drag
+  const renderHDragPreview = () => {
+    if (!hDragState) return null;
+    return (
+      <div style={{
+        position: 'fixed',
+        left: hDragState.screenPos.x - 32,
+        top: hDragState.screenPos.y - 12,
+        pointerEvents: 'none',
+        zIndex: 1000,
+        background: '#FBBF24',
+        border: '2px solid #2C1810',
+        borderRadius: 5,
+        padding: '2px 8px',
+        fontFamily: 'Nunito',
+        fontSize: 11,
+        fontWeight: 800,
+        color: '#2C1810',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+        textAlign: 'center',
+        minWidth: 64,
+      }}>
+        <div style={{ fontSize: 9, fontWeight: 700 }}>{hDragState.hKey}</div>
+        <div>{hDragState.value}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen p-4" style={{ background: '#F5EDD6' }}>
       {renderDragPreview()}
+      {renderHDragPreview()}
       <div className="max-w-7xl mx-auto" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #2C1810', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <h3 className="text-lg font-extrabold mb-1" style={{ color: '#2C1810' }}>
@@ -1640,11 +1717,15 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
                 {[{ key: 'h1', point: points.p1, color: '#FBBF24' }, { key: 'h2', point: points.p2, color: '#FBBF24' }, { key: 'h3', point: points.p3, color: '#FBBF24' }].map(({ key, point, color }) => {
                   if (!validatedHKeys.has(key) || !point) return null;
                   const x = enthalpyToX(point.h);
+                  const isDraggable = bootjeValidated;
+                  const value = Math.round(point.h);
                   return (
-                    <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s' }}>
-                      <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" />
-                      <rect x={x - 28} y={PLOT.bottom + 2} width="56" height="18" rx="4" fill={color} />
-                      <text x={x} y={PLOT.bottom + 14} textAnchor="middle" fontSize="11" fontWeight="800" fill="#2C1810" fontFamily="Nunito">{Math.round(point.h)}</text>
+                    <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s', cursor: isDraggable ? 'grab' : 'default' }}
+                       onPointerDown={isDraggable ? (e) => handleHBlockPointerDown(e, key, value) : undefined}>
+                      <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" pointerEvents="none" />
+                      <rect x={x - 32} y={PLOT.bottom + 2} width="64" height="22" rx="5" fill={color} stroke={isDraggable ? '#2C1810' : 'none'} strokeWidth={isDraggable ? 1.5 : 0} />
+                      <text x={x} y={PLOT.bottom + 12} textAnchor="middle" fontSize="9" fontWeight="700" fill="#2C1810" fontFamily="Nunito" pointerEvents="none">{key}</text>
+                      <text x={x} y={PLOT.bottom + 21} textAnchor="middle" fontSize="10" fontWeight="800" fill="#2C1810" fontFamily="Nunito" pointerEvents="none">{value}</text>
                     </g>
                   );
                 })}
@@ -1701,7 +1782,16 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
           )}
 
           {bootjeValidated && mode === 'r2' && (
-            <EerCopCalcPanel expected={expected} derived={derived} onComplete={(pts) => { onComplete(pointsEarned + pts); }} onLoseLife={onLoseLife} onHValidated={(key) => setValidatedHKeys(prev => new Set([...prev, key]))} />
+            <EerCopCalcPanel
+              expected={expected}
+              derived={derived}
+              onComplete={(pts) => { onComplete(pointsEarned + pts); }}
+              onLoseLife={onLoseLife}
+              onHValidated={(key) => setValidatedHKeys(prev => new Set([...prev, key]))}
+              hDropFilled={hDropFilled}
+              hDragActive={!!hDragState}
+              onResetSlots={() => setHDropFilled({})}
+            />
           )}
           {bootjeValidated && mode === 'r3' && (
             <OvhOnkCalcPanel measurements={measurements} expected={expected} onComplete={(pts) => { onComplete(pointsEarned + pts); }} onLoseLife={onLoseLife} />
@@ -1712,26 +1802,105 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// DROP SLOT — target voor drag-and-drop van gele h-blokken
+// ═══════════════════════════════════════════════════════════════
+
+function HDropSlot({ slotId, expectedKey, hDropFilled, hDragActive }) {
+  const filled = hDropFilled[slotId];
+  const isCorrect = filled && filled.status === 'correct';
+  const isWrong = filled && filled.status === 'wrong';
+
+  let bg = 'white';
+  let border = '2px dashed #8B7355';
+  let color = '#8B7355';
+  if (isCorrect) { bg = '#FBBF24'; border = '2px solid #2C1810'; color = '#2C1810'; }
+  else if (isWrong) { bg = '#B84A3D'; border = '2px solid #2C1810'; color = 'white'; }
+  else if (hDragActive) { border = '2px dashed #FBBF24'; bg = 'rgba(251,191,36,0.08)'; }
+
+  return (
+    <span
+      data-h-drop-slot={slotId}
+      data-h-drop-expected={expectedKey}
+      style={{
+        display: 'inline-block',
+        minWidth: 56,
+        minHeight: 26,
+        padding: '2px 8px',
+        borderRadius: 5,
+        background: bg,
+        border: border,
+        color: color,
+        fontFamily: 'Nunito',
+        fontWeight: 800,
+        fontSize: 13,
+        textAlign: 'center',
+        verticalAlign: 'middle',
+        margin: '0 2px',
+        transition: 'all 0.15s',
+        animation: isWrong ? 'shake 0.5s' : (isCorrect ? 'pop-in 0.3s' : 'none'),
+      }}>
+      {filled ? filled.value : '?'}
+    </span>
+  );
+}
+
+// Formule-regel met drop slots en resultaat
+function DropFormulaStep({ label, slots, template, compute, correct, margin, unit, decimals, hDropFilled, hDragActive, onComplete, stepKey }) {
+  const allFilled = slots.every(s => {
+    const f = hDropFilled[s.id];
+    return f && f.status === 'correct';
+  });
+  const values = {};
+  slots.forEach(s => { if (hDropFilled[s.id]) values[s.id] = hDropFilled[s.id].value; });
+  const result = allFilled ? compute(values) : null;
+  const isClose = result !== null && Math.abs(result - correct) <= margin;
+  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    if (allFilled && isClose && !completed) {
+      setCompleted(true);
+      onComplete?.(stepKey);
+    }
+  }, [allFilled, isClose, completed]);
+
+  return (
+    <div className="rounded-xl p-3 mb-2" style={{ background: completed ? 'rgba(107,142,61,0.08)' : 'white', border: `2px solid ${completed ? '#6B8E3D' : '#5C3A21'}` }}>
+      <div className="flex items-center gap-2 mb-2">
+        {completed && <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#6B8E3D' }}><Check size={11} className="text-white" /></div>}
+        <span className="font-bold text-sm" style={{ color: '#2C1810' }}>{label}</span>
+      </div>
+      <div className="text-sm" style={{ color: '#2C1810', lineHeight: '2em' }}>
+        {template.map((part, i) => {
+          if (typeof part === 'string') return <span key={i}>{part}</span>;
+          // part is { slot: id, expected: hKey }
+          return <HDropSlot key={i} slotId={part.slot} expectedKey={part.expected} hDropFilled={hDropFilled} hDragActive={hDragActive} />;
+        })}
+        {allFilled && (
+          <span className="ml-2 font-bold" style={{ color: completed ? '#6B8E3D' : '#5C3A21' }}>
+            = {fmtNum(result, decimals)} {unit}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // EER+COP calc panel for M2R2
-function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidated }) {
+function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidated, hDropFilled, hDragActive, onResetSlots }) {
   const [done, setDone] = useState(false);
   const [stepPts, setStepPts] = useState(0);
   const [phase, setPhase] = useState('aflezen');
   const [aflezenPts, setAflezenPts] = useState(0);
-  const [eerPts, setEerPts] = useState(0);
+  const [dropCompleted, setDropCompleted] = useState({}); // { dhComp: true, eer: true }
+  const [copValue, setCopValue] = useState('');
+  const [copAttempts, setCopAttempts] = useState(0);
+  const [copValidated, setCopValidated] = useState(false);
 
   const aflezenSteps = [
     { key: 'h1', label: 'h1 aflezen', formula: 'h1 (uit diagram)', prompt: 'h1 ≈', correct: derived.h1, margin: 12, decimals: 0, unit: 'kJ/kg', hint: 'Beweeg de crosshair naar punt 1 en lees de enthalpie af.' },
     { key: 'h2', label: 'h2 aflezen', formula: 'h2 (uit diagram)', prompt: 'h2 ≈', correct: derived.h2, margin: 12, decimals: 0, unit: 'kJ/kg', hint: 'Beweeg de crosshair naar punt 2 en lees de enthalpie af.' },
     { key: 'h3', label: 'h3 aflezen', formula: 'h3 (uit diagram)', prompt: 'h3 ≈', correct: derived.h3, margin: 12, decimals: 0, unit: 'kJ/kg', hint: 'Beweeg de crosshair naar punt 3 en lees de enthalpie af.' },
-  ];
-  // Verdamper step is verwijderd op advies Roeland — direct naar compressor + EER + COP.
-  const eerSteps = [
-    { key: 'dhComp', label: 'Compressorvermogen', formula: 'h2 − h1', prompt: `${derived.h2} − ${derived.h1} =`, correct: derived.dhComp, margin: 5, decimals: 0, unit: 'kJ/kg', hint: 'Trek h1 af van h2.' },
-    { key: 'eer', label: 'EER', formula: '(h1 − h3) / (h2 − h1)', prompt: `(${derived.h1} − ${derived.h3}) / (${derived.h2} − ${derived.h1}) =`, correct: derived.eer, margin: 0.4, decimals: 1, unit: '', hint: 'Deel (h1 − h3) door (h2 − h1).' },
-  ];
-  const copSteps = [
-    { key: 'cop', label: 'COP', formula: 'EER + 1', prompt: 'EER + 1 =', correct: derived.cop, margin: 0.4, decimals: 1, unit: '', hint: 'COP is altijd EER + 1.' },
   ];
 
   const handleAflezenValidated = (key) => { if (['h1', 'h2', 'h3'].includes(key)) onHValidated?.(key); };
@@ -1739,13 +1908,27 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
     let pts = 0; ['h1', 'h2', 'h3'].forEach(k => { if (attempts[k] === 1) pts += SCORING.m2r2.perH; });
     setAflezenPts(pts); setPhase('eer');
   };
-  const handleEerDone = (values, attempts) => {
-    let pts = 0; if (attempts.eer === 1) pts += Math.floor(SCORING.m2r2.final / 2);
-    setEerPts(pts); setPhase('cop');
+
+  const handleDropStepComplete = (stepKey) => {
+    setDropCompleted(prev => ({ ...prev, [stepKey]: true }));
   };
-  const handleCopDone = (values, attempts) => {
-    const copPts = attempts.cop === 1 ? Math.floor(SCORING.m2r2.final / 2) : 0;
-    setStepPts(aflezenPts + eerPts + copPts); setDone(true);
+
+  const dhCompBothDone = dropCompleted.dhComp && dropCompleted.eer;
+
+  const handleCopCheck = () => {
+    const v = parseNum(copValue);
+    if (Number.isNaN(v)) return;
+    const newAtt = copAttempts + 1;
+    setCopAttempts(newAtt);
+    if (Math.abs(v - derived.cop) <= 0.4) {
+      setCopValidated(true);
+      const copPts = newAtt === 1 ? Math.floor(SCORING.m2r2.final / 2) : 0;
+      const dropPts = dhCompBothDone ? Math.floor(SCORING.m2r2.final / 2) : 0;
+      setStepPts(aflezenPts + dropPts + copPts);
+      setDone(true);
+    } else {
+      onLoseLife?.();
+    }
   };
 
   return (
@@ -1754,22 +1937,102 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
         <h4 className="font-extrabold italic mb-3" style={{ color: '#2C1810' }}>Enthalpieën aflezen</h4>
         <CalculationPanel steps={aflezenSteps} onAllDone={handleAflezenDone} onLoseLife={onLoseLife} onStepValidated={handleAflezenValidated} />
       </div>
-      {(phase === 'eer' || phase === 'cop' || done) && (
+
+      {(phase === 'eer' || done) && (
         <div className="p-4 rounded-xl bg-white" style={{ border: '2px solid #2C1810', animation: 'fadeInUp 0.3s' }}>
-          <h4 className="font-extrabold italic mb-3" style={{ color: '#2C1810' }}>EER uitrekenen</h4>
-          {phase === 'eer' ? <CalculationPanel steps={eerSteps} onAllDone={handleEerDone} onLoseLife={onLoseLife} /> : (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(107,142,61,0.08)', border: '1.5px solid #6B8E3D' }}>
-              <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#6B8E3D' }}><Check size={13} className="text-white" /></div>
-              <span className="font-bold text-sm" style={{ color: '#2C1810' }}>EER</span>
-              <span className="font-bold text-sm ml-auto" style={{ color: '#6B8E3D' }}>{fmtNum(derived.eer, 1)}</span>
+          <h4 className="font-extrabold italic mb-1" style={{ color: '#2C1810' }}>Compressorvermogen & EER</h4>
+          <p className="text-xs italic mb-3" style={{ color: '#5C3A21' }}>Sleep de gele h-blokken uit de grafiek in de juiste vakjes.</p>
+
+          <DropFormulaStep
+            stepKey="dhComp"
+            label="Compressorvermogen"
+            slots={[{ id: 'dhComp_a', expected: 'h2' }, { id: 'dhComp_b', expected: 'h1' }]}
+            template={[
+              { slot: 'dhComp_a', expected: 'h2' },
+              ' − ',
+              { slot: 'dhComp_b', expected: 'h1' },
+            ]}
+            compute={(v) => v.dhComp_a - v.dhComp_b}
+            correct={derived.dhComp}
+            margin={5}
+            decimals={0}
+            unit="kJ/kg"
+            hDropFilled={hDropFilled}
+            hDragActive={hDragActive}
+            onComplete={handleDropStepComplete}
+          />
+
+          <DropFormulaStep
+            stepKey="eer"
+            label="EER"
+            slots={[
+              { id: 'eer_a', expected: 'h1' },
+              { id: 'eer_b', expected: 'h3' },
+              { id: 'eer_c', expected: 'h2' },
+              { id: 'eer_d', expected: 'h1' },
+            ]}
+            template={[
+              '( ',
+              { slot: 'eer_a', expected: 'h1' },
+              ' − ',
+              { slot: 'eer_b', expected: 'h3' },
+              ' ) / ( ',
+              { slot: 'eer_c', expected: 'h2' },
+              ' − ',
+              { slot: 'eer_d', expected: 'h1' },
+              ' )',
+            ]}
+            compute={(v) => (v.eer_a - v.eer_b) / (v.eer_c - v.eer_d)}
+            correct={derived.eer}
+            margin={0.4}
+            decimals={1}
+            unit=""
+            hDropFilled={hDropFilled}
+            hDragActive={hDragActive}
+            onComplete={handleDropStepComplete}
+          />
+
+          {!dhCompBothDone && (
+            <button onClick={() => onResetSlots?.()}
+              className="mt-2 px-3 py-1 rounded-lg text-xs font-bold hover:brightness-95 active:scale-95"
+              style={{ background: 'white', color: '#B84A3D', border: '2px solid #B84A3D' }}>
+              <Eraser size={10} className="inline mr-1" /> Vakjes legen
+            </button>
+          )}
+
+          {dhCompBothDone && !done && (
+            <div className="mt-3 p-2 rounded-lg text-white text-sm italic" style={{ background: '#6B8E3D', animation: 'fadeInUp 0.3s' }}>
+              Goed! EER = {fmtNum(derived.eer, 1)}. Nu de COP berekenen.
             </div>
           )}
         </div>
       )}
-      {(phase === 'cop' || done) && (
+
+      {dhCompBothDone && (
         <div className="p-4 rounded-xl bg-white" style={{ border: '2px solid #2C1810', animation: 'fadeInUp 0.3s' }}>
-          <h4 className="font-extrabold italic mb-3" style={{ color: '#2C1810' }}>COP uitrekenen</h4>
-          {phase === 'cop' && !done ? <CalculationPanel steps={copSteps} onAllDone={handleCopDone} onLoseLife={onLoseLife} /> : (
+          <h4 className="font-extrabold italic mb-1" style={{ color: '#2C1810' }}>COP berekenen</h4>
+          <p className="text-xs italic mb-3" style={{ color: '#5C3A21' }}>COP = EER + 1</p>
+          {!copValidated ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono" style={{ color: '#2C1810' }}>{fmtNum(derived.eer, 1)} + 1 =</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={copValue}
+                onChange={(e) => setCopValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCopCheck(); }}
+                className="w-24 px-2 py-1 rounded-lg font-mono text-sm"
+                style={{ background: '#FAFAF5', border: '2px solid #5C3A21', color: '#2C1810' }}
+                placeholder="?"
+                autoFocus
+              />
+              <button onClick={handleCopCheck} disabled={copValue === ''}
+                className="px-3 py-1 rounded-lg font-bold italic text-white text-sm hover:brightness-90 active:scale-95 disabled:opacity-40"
+                style={{ background: '#5C3A21', border: '2px solid #2C1810', boxShadow: '0 2px 0 rgba(0,0,0,0.15)' }}>
+                Controleer
+              </button>
+            </div>
+          ) : (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: 'rgba(107,142,61,0.08)', border: '1.5px solid #6B8E3D' }}>
               <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#6B8E3D' }}><Check size={13} className="text-white" /></div>
               <span className="font-bold text-sm" style={{ color: '#2C1810' }}>COP</span>
@@ -1778,6 +2041,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
           )}
         </div>
       )}
+
       {done && (
         <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(107,142,61,0.1)', border: '2px solid #6B8E3D' }}>
           <p className="italic mb-3" style={{ color: '#2C1810', lineHeight: 1.6 }}>
