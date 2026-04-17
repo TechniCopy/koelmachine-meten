@@ -199,8 +199,9 @@ const M2_MEASUREMENTS_R3 = { ...M1_MEASUREMENTS };
 
 function computePoint(T, P, region) {
   const sat = satAtP(P);
-  // cp ≈ 1.8 (empirische factor zodat oververhitte punten duidelijk naast de damplijn vallen)
-  if (region === 'superheated') return { h: sat.hV + 1.8 * (T - sat.T), P };
+  // cp = 0.9 (ideaal-gas benadering voor R-134a-damp)
+  // MOET consistent zijn met lookupTemp, anders leest de crosshair-T anders dan de beoogde T.
+  if (region === 'superheated') return { h: sat.hV + 0.9 * (T - sat.T), P };
   if (region === 'subcooled') return { h: satAtT(T).hL, P };
   return { h: sat.hL + (sat.hV - sat.hL) * 0.5, P };
 }
