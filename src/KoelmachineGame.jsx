@@ -199,7 +199,8 @@ const M2_MEASUREMENTS_R3 = { ...M1_MEASUREMENTS };
 
 function computePoint(T, P, region) {
   const sat = satAtP(P);
-  if (region === 'superheated') return { h: sat.hV + 0.9 * (T - sat.T), P };
+  // cp ≈ 1.8 (empirische factor zodat oververhitte punten duidelijk naast de damplijn vallen)
+  if (region === 'superheated') return { h: sat.hV + 1.8 * (T - sat.T), P };
   if (region === 'subcooled') return { h: satAtT(T).hL, P };
   return { h: sat.hL + (sat.hV - sat.hL) * 0.5, P };
 }
@@ -584,7 +585,7 @@ function QuizCheck({ quizQs, maxPoints, onComplete, onLoseLife, lives }) {
 // R-134a DIAGRAM (SVG)
 // ═══════════════════════════════════════════════════════════════
 
-function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showCrosshair = true, activeTool = null, showReadout = true, svgRef }) {
+function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showCrosshair = true, activeTool = null, showReadout = true, svgRef, onElementPointerDown, draggableElements = false }) {
   const [crosshair, setCrosshair] = useState(null);
   const handleMove = (e) => {
     if (!showCrosshair) return;
@@ -609,6 +610,13 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
     }
   };
 
+  const handleElementDown = (e, target) => {
+    if (!draggableElements || !onElementPointerDown) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onElementPointerDown(target, e);
+  };
+
   const bootjePointPositions = {};
   ['p1', 'p2', 'p3', 'p4'].forEach(key => {
     if (points[key]) { const [px, py] = hpToXY(points[key].h, points[key].P); bootjePointPositions[key] = { x: px, y: py }; }
@@ -630,8 +638,17 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
         <path d={VAPOR_PATH} fill="none" stroke="#EF4444" strokeWidth="2.5" />
         <circle cx={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[0]} cy={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[1]} r="5" fill="#2C1810" stroke="#fff" strokeWidth="1.5" />
         <text x={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[0] + 10} y={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[1] - 6} fontSize="11" fontWeight="700" fill="#2C1810" fontFamily="Nunito">K</text>
-        {lines.highP && (() => { const y = pressureToY(lines.highP); return <g><line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#991B1B" strokeWidth="2" strokeDasharray="6 4" /><text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#991B1B" fontWeight="bold" fontFamily="Nunito">HP {fmtNum(lines.highP, 1)}</text></g>; })()}
-        {lines.lowP && (() => { const y = pressureToY(lines.lowP); return <g><line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#1E3A8A" strokeWidth="2" strokeDasharray="6 4" /><text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#1E3A8A" fontWeight="bold" fontFamily="Nunito">LP {fmtNum(lines.lowP, 1)}</text></g>; })()}
+        {lines.highP && (() => { const y = pressureToY(lines.highP); return <g style={{ cursor: draggableElements ? 'grab' : 'default' }} onPointerDown={(e) => handleElementDown(e, 'highP')}>
+          {/* Wide invisible hit area for easier grabbing */}
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth="18" />
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#991B1B" strokeWidth="2" strokeDasharray="6 4" />
+          <text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#991B1B" fontWeight="bold" fontFamily="Nunito">HP {fmtNum(lines.highP, 1)}</text>
+        </g>; })()}
+        {lines.lowP && (() => { const y = pressureToY(lines.lowP); return <g style={{ cursor: draggableElements ? 'grab' : 'default' }} onPointerDown={(e) => handleElementDown(e, 'lowP')}>
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth="18" />
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#1E3A8A" strokeWidth="2" strokeDasharray="6 4" />
+          <text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#1E3A8A" fontWeight="bold" fontFamily="Nunito">LP {fmtNum(lines.lowP, 1)}</text>
+        </g>; })()}
         {bootjePointPositions.p1 && bootjePointPositions.p2 && <line x1={bootjePointPositions.p1.x} y1={bootjePointPositions.p1.y} x2={bootjePointPositions.p2.x} y2={bootjePointPositions.p2.y} stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />}
         {bootjePointPositions.p2 && bootjePointPositions.p3 && <line x1={bootjePointPositions.p2.x} y1={bootjePointPositions.p2.y} x2={bootjePointPositions.p3.x} y2={bootjePointPositions.p3.y} stroke="#DC2626" strokeWidth="3" strokeLinecap="round" />}
         {bootjePointPositions.p3 && bootjePointPositions.p4 && <line x1={bootjePointPositions.p3.x} y1={bootjePointPositions.p3.y} x2={bootjePointPositions.p4.x} y2={bootjePointPositions.p4.y} stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" />}
@@ -639,7 +656,12 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
         {['p1', 'p2', 'p3', 'p4'].map(key => {
           const pt = bootjePointPositions[key];
           if (!pt) return null;
-          return (<g key={key}><circle cx={pt.x} cy={pt.y} r="10" fill="white" stroke="#2C1810" strokeWidth="2" /><text x={pt.x} y={pt.y + 4} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#2C1810" fontFamily="Nunito">{key.substring(1)}</text></g>);
+          const isDraggable = draggableElements && key !== 'p4'; // p4 is auto-placed
+          return (<g key={key} style={{ cursor: isDraggable ? 'grab' : 'default' }} onPointerDown={(e) => isDraggable && handleElementDown(e, key)}>
+            {isDraggable && <circle cx={pt.x} cy={pt.y} r="18" fill="transparent" />}
+            <circle cx={pt.x} cy={pt.y} r="10" fill="white" stroke="#2C1810" strokeWidth="2" />
+            <text x={pt.x} y={pt.y + 4} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#2C1810" fontFamily="Nunito" pointerEvents="none">{key.substring(1)}</text>
+          </g>);
         })}
         {crosshair && showCrosshair && (
           <g pointerEvents="none">
@@ -654,7 +676,6 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
         <div className="absolute top-3 right-3 bg-white rounded-lg px-3 py-2 text-xs font-mono" style={{ border: '2px solid #2C1810', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
           <div className="flex items-center gap-1"><Thermometer size={12} style={{ color: '#B84A3D' }} /> <span style={{ color: '#2C1810', fontWeight: 700 }}>{fmtNum(crosshair.T, 0)} °C</span></div>
           <div style={{ color: '#5C3A21' }}>P abs: <span className="font-bold" style={{ color: '#2C1810' }}>{fmtNum(crosshair.P, 1)} bar</span></div>
-          <div style={{ color: '#5C3A21' }}>P eff: <span className="font-bold" style={{ color: '#2C1810' }}>{fmtNum(crosshair.P - 1, 1)} bar</span></div>
           <div style={{ color: '#5C3A21' }}>h: <span className="font-bold" style={{ color: '#2C1810' }}>{fmtNum(crosshair.h, 0)} kJ/kg</span></div>
         </div>
       )}
@@ -1278,8 +1299,8 @@ function CalculationPanel({ steps, onAllDone, onLoseLife, lives, onStepChange, o
 
 function DataPanel({ measurements, compact = false }) {
   const rows = [
-    { label: 'Hogedruk', eff: measurements.highPressureEff, abs: measurements.highPressureAbs, unit: 'bar' },
-    { label: 'Lagedruk', eff: measurements.lowPressureEff, abs: measurements.lowPressureAbs, unit: 'bar' },
+    { label: 'Hogedruk', eff: measurements.highPressureEff, unit: 'bar' },
+    { label: 'Lagedruk', eff: measurements.lowPressureEff, unit: 'bar' },
   ];
   const temps = [
     { label: 'Verdampingstemperatuur', value: measurements.T_verdamping },
@@ -1296,7 +1317,7 @@ function DataPanel({ measurements, compact = false }) {
         {rows.map(r => (
           <div key={r.label} className="grid grid-cols-[1fr_auto] gap-2 text-xs mb-0.5" style={{ color: '#2C1810' }}>
             <span>{r.label}</span>
-            <span className="font-mono"><span className="font-bold">{fmtNum(r.eff, 1)}</span> bare <span className="opacity-60">/ {fmtNum(r.abs, 1)} bara</span></span>
+            <span className="font-mono"><span className="font-bold">{fmtNum(r.eff, 1)}</span> bare</span>
           </div>
         ))}
       </div>
@@ -1442,78 +1463,85 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
 const TOOL_DEFS = [
   { id: 'highP', label: 'Hogedruklijn', color: '#991B1B' },
   { id: 'lowP', label: 'Lagedruklijn', color: '#1E3A8A' },
-  { id: 'p1', label: 'Punt 1 plaatsen', color: '#2C1810' },
-  { id: 'p2', label: 'Punt 2 plaatsen', color: '#2C1810' },
-  { id: 'p3', label: 'Punt 3 plaatsen', color: '#2C1810' },
+  { id: 'p1', label: 'Punt 1, T_zuigleiding', color: '#2C1810' },
+  { id: 'p2', label: 'Punt 2, T_eindcompressie', color: '#2C1810' },
+  { id: 'p3', label: 'Punt 3, T_expansieventiel', color: '#2C1810' },
 ];
 
 function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, lives }) {
   const svgRef = useRef(null);
-  const [activeTool, setActiveTool] = useState(null);
   const [lines, setLines] = useState({ highP: null, lowP: null });
   const [points, setPoints] = useState({ p1: null, p2: null, p3: null, p4: null });
   const [feedbackText, setFeedbackText] = useState(null);
   const [pointsEarned, setPointsEarned] = useState(0);
   const [bootjeValidated, setBootjeValidated] = useState(false);
   const [validatedHKeys, setValidatedHKeys] = useState(new Set());
-  const [r3ClickPhase, setR3ClickPhase] = useState(0);
+
+  // Drag state: { mode: 'place'|'reposition', target: 'highP'|'lowP'|'p1'|..., screenPos:{x,y}, coords:{h,P,T}|null }
+  const [dragState, setDragState] = useState(null);
 
   useEffect(() => {
     if (points.p3 && lines.lowP && !points.p4) setPoints(prev => ({ ...prev, p4: { h: prev.p3.h, P: lines.lowP } }));
     if (!points.p3 && points.p4) setPoints(prev => ({ ...prev, p4: null }));
+    // Also update p4 if lowP or p3.h changes (follows p3)
+    if (points.p3 && lines.lowP && points.p4 && (points.p4.h !== points.p3.h || points.p4.P !== lines.lowP)) {
+      setPoints(prev => ({ ...prev, p4: { h: prev.p3.h, P: lines.lowP } }));
+    }
   }, [points.p3, lines.lowP, points.p4]);
 
-  const autoDetectPoint = (click) => {
-    if (!lines.highP || !lines.lowP) return null;
-    const nearHP = Math.abs(click.P - lines.highP) < Math.abs(click.P - lines.lowP);
-    const sat = satAtP(click.P);
-    const isSubcooled = click.h < sat.hL + 5;
-    const isSuperheated = click.h > sat.hV - 10;
-    if (nearHP && isSuperheated && !points.p2) return 'p2';
-    if (nearHP && isSubcooled && !points.p3) return 'p3';
-    if (!nearHP && isSuperheated && !points.p1) return 'p1';
-    if (nearHP && isSuperheated) return 'p2';
-    if (nearHP && isSubcooled) return 'p3';
-    if (!nearHP && isSuperheated) return 'p1';
-    return null;
+  // Global pointer handlers for drag-in-progress
+  useEffect(() => {
+    if (!dragState || bootjeValidated) return;
+    const onMove = (e) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * SVG_W;
+      const y = ((e.clientY - rect.top) / rect.height) * SVG_H;
+      const inBounds = x >= PLOT.left && x <= PLOT.right && y >= PLOT.top && y <= PLOT.bottom;
+      const coords = inBounds ? { h: xToEnthalpy(x), P: yToPressure(y), T: lookupTemp(xToEnthalpy(x), yToPressure(y)) } : null;
+      setDragState(ds => ds ? { ...ds, screenPos: { x: e.clientX, y: e.clientY }, coords } : null);
+
+      // Live reposition: update position while dragging existing element
+      if (dragState.mode === 'reposition' && coords) {
+        const t = dragState.target;
+        if (t === 'highP') setLines(l => ({ ...l, highP: coords.P }));
+        else if (t === 'lowP') setLines(l => ({ ...l, lowP: coords.P }));
+        else if (['p1', 'p2', 'p3'].includes(t)) setPoints(p => ({ ...p, [t]: { h: coords.h, P: coords.P } }));
+      }
+    };
+    const onUp = () => {
+      setDragState(ds => {
+        if (!ds) return null;
+        // Commit placement (reposition is already committed via onMove)
+        if (ds.mode === 'place' && ds.coords) {
+          const t = ds.target;
+          if (t === 'highP') setLines(l => ({ ...l, highP: ds.coords.P }));
+          else if (t === 'lowP') setLines(l => ({ ...l, lowP: ds.coords.P }));
+          else if (['p1', 'p2', 'p3'].includes(t)) setPoints(p => ({ ...p, [t]: { h: ds.coords.h, P: ds.coords.P } }));
+        }
+        return null;
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  }, [dragState, bootjeValidated]);
+
+  const handleToolPointerDown = (e, toolId) => {
+    if (bootjeValidated) return;
+    e.preventDefault();
+    setDragState({ mode: 'place', target: toolId, screenPos: { x: e.clientX, y: e.clientY }, coords: null });
   };
 
-  const handleDiagramClick = (click) => {
+  const handleElementPointerDown = (target, e) => {
     if (bootjeValidated) return;
-    if (mode === 'r3') {
-      if (r3ClickPhase === 0) {
-        setLines(prev => ({ ...prev, highP: click.P })); setR3ClickPhase(1);
-        setFeedbackText({ type: 'correct', text: 'Hogedruklijn geplaatst. Klik nu voor de lagedruklijn.' });
-        setTimeout(() => setFeedbackText(null), 1500); return;
-      }
-      if (r3ClickPhase === 1) {
-        setLines(prev => ({ ...prev, lowP: click.P })); setR3ClickPhase(2);
-        setFeedbackText({ type: 'correct', text: 'Lagedruklijn geplaatst. Plaats nu de punten — klik op de juiste positie in het diagram.' });
-        setTimeout(() => setFeedbackText(null), 2000); return;
-      }
-      const detected = autoDetectPoint(click);
-      if (detected) {
-        setPoints(prev => ({ ...prev, [detected]: { h: click.h, P: click.P } }));
-        setFeedbackText({ type: 'correct', text: `${{ p1: 'Punt 1', p2: 'Punt 2', p3: 'Punt 3' }[detected]} geplaatst.` });
-        setTimeout(() => setFeedbackText(null), 1200);
-      } else {
-        setFeedbackText({ type: 'wrong', text: 'Klik dichter bij een druklijn, in het juiste gebied (vloeistof of damp).' });
-        setTimeout(() => setFeedbackText(null), 2000);
-      }
-      return;
-    }
-    if (!activeTool) return;
-    switch (activeTool) {
-      case 'highP': setLines(prev => ({ ...prev, highP: click.P })); break;
-      case 'lowP': setLines(prev => ({ ...prev, lowP: click.P })); break;
-      case 'p1': case 'p2': case 'p3': setPoints(prev => ({ ...prev, [activeTool]: { h: click.h, P: click.P } })); break;
-    }
-    setActiveTool(null);
+    setDragState({ mode: 'reposition', target, screenPos: { x: e.clientX, y: e.clientY }, coords: null });
   };
 
   const handleWissen = (what) => {
     if (bootjeValidated) return;
-    if (what === 'all') { setLines({ highP: null, lowP: null }); setPoints({ p1: null, p2: null, p3: null, p4: null }); if (mode === 'r3') setR3ClickPhase(0); }
+    if (what === 'all') { setLines({ highP: null, lowP: null }); setPoints({ p1: null, p2: null, p3: null, p4: null }); }
     else if (what === 'lines') setLines({ highP: null, lowP: null });
     else if (['p1', 'p2', 'p3'].includes(what)) setPoints(prev => ({ ...prev, [what]: null, ...(what === 'p3' ? { p4: null } : {}) }));
   };
@@ -1546,8 +1574,46 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
 
   const derived = mode === 'r2' ? deriveEfficiencies(expected) : null;
 
+  // Render drag preview overlay
+  const renderDragPreview = () => {
+    if (!dragState) return null;
+    const toolDef = TOOL_DEFS.find(t => t.id === dragState.target);
+    const label = toolDef ? toolDef.label : dragState.target;
+    const coords = dragState.coords;
+    return (
+      <div style={{
+        position: 'fixed',
+        left: dragState.screenPos.x + 14,
+        top: dragState.screenPos.y + 14,
+        pointerEvents: 'none',
+        zIndex: 1000,
+        background: 'white',
+        border: '2px solid #2C1810',
+        borderRadius: 8,
+        padding: '6px 10px',
+        fontSize: 11,
+        fontFamily: 'Nunito',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+      }}>
+        <div style={{ fontWeight: 800, color: toolDef?.color || '#2C1810', marginBottom: 2 }}>
+          {dragState.mode === 'reposition' ? 'Verplaats: ' : ''}{label}
+        </div>
+        {coords ? (
+          <div style={{ color: '#5C3A21', fontFamily: 'monospace' }}>
+            <div>T: <b>{fmtNum(coords.T, 0)} °C</b></div>
+            <div>P: <b>{fmtNum(coords.P, 1)} bar</b></div>
+            <div>h: <b>{fmtNum(coords.h, 0)} kJ/kg</b></div>
+          </div>
+        ) : (
+          <div style={{ color: '#8B7355', fontStyle: 'italic' }}>Sleep over het diagram</div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen p-4" style={{ background: '#F5EDD6' }}>
+      {renderDragPreview()}
       <div className="max-w-7xl mx-auto" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #2C1810', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <h3 className="text-lg font-extrabold mb-1" style={{ color: '#2C1810' }}>
@@ -1555,97 +1621,78 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
           </h3>
           <p className="text-sm italic mb-4" style={{ color: '#5C3A21' }}>
             {mode === 'r2'
-              ? 'Je kent de aanpak nu. Hier staan alle gegevens. Teken zelf het bootje en bereken daarna de EER en COP van deze installatie. Kies je eigen volgorde!'
-              : 'Andere installatie, andere gegevens. Teken het bootje zelf in. Klik eerst voor de hogedruklijn, dan de lagedruklijn, en daarna de punten — in willekeurige volgorde.'}
+              ? 'Je kent de aanpak nu. Hier staan alle gegevens. Sleep de lijnen en punten uit het tekenmateriaal op de grafiek. Je kunt ze daarna slepen om ze te corrigeren.'
+              : 'Andere installatie, andere gegevens. Sleep de lijnen en punten uit het tekenmateriaal op de grafiek. Je kunt ze altijd nog corrigeren door ze te verslepen.'}
           </p>
 
-          {mode === 'r3' ? (
-            <div className="grid lg:grid-cols-[220px_1fr] gap-3">
-              <div className="space-y-3">
-                <DataPanel measurements={measurements} compact />
-                {!bootjeValidated && (
-                  <div className="rounded-xl p-3" style={{ background: 'rgba(251,191,36,0.1)', border: '2px solid #FBBF24' }}>
-                    <p className="text-xs font-bold" style={{ color: '#2C1810' }}>
-                      {r3ClickPhase === 0 ? 'Klik in het diagram voor de hogedruklijn' : r3ClickPhase === 1 ? 'Klik nu voor de lagedruklijn' : 'Plaats de punten — klik in het juiste gebied'}
-                    </p>
-                    {r3ClickPhase === 2 && (
-                      <div className="flex gap-1 mt-2 flex-wrap">
-                        {['p1', 'p2', 'p3'].map(k => (<span key={k} className="text-xs px-2 py-0.5 rounded" style={{ background: points[k] ? '#6B8E3D' : '#e8e0c8', color: points[k] ? 'white' : '#5C3A21' }}>{points[k] && <Check size={10} className="inline mr-0.5" />}{k.toUpperCase()}</span>))}
-                        {points.p4 && <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#7C3AED', color: 'white' }}>P4 auto</span>}
-                      </div>
-                    )}
+          <div className="grid lg:grid-cols-[220px_1fr_240px] gap-3">
+            <DataPanel measurements={measurements} compact />
+            <div>
+              <R134aDiagram
+                svgRef={svgRef}
+                lines={lines}
+                points={points}
+                onElementPointerDown={handleElementPointerDown}
+                draggableElements={!bootjeValidated}
+                activeTool={dragState ? 'drag' : null}
+                showCrosshair={!dragState}
+              >
+                {[{ key: 'h1', point: points.p1, color: '#FBBF24' }, { key: 'h2', point: points.p2, color: '#FBBF24' }, { key: 'h3', point: points.p3, color: '#FBBF24' }].map(({ key, point, color }) => {
+                  if (!validatedHKeys.has(key) || !point) return null;
+                  const x = enthalpyToX(point.h);
+                  return (
+                    <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s' }}>
+                      <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" />
+                      <rect x={x - 28} y={PLOT.bottom + 2} width="56" height="18" rx="4" fill={color} />
+                      <text x={x} y={PLOT.bottom + 14} textAnchor="middle" fontSize="11" fontWeight="800" fill="#2C1810" fontFamily="Nunito">{Math.round(point.h)}</text>
+                    </g>
+                  );
+                })}
+              </R134aDiagram>
+            </div>
+            <div className="space-y-2">
+              <div className="bg-white rounded-xl p-3" style={{ border: '2px solid #2C1810' }}>
+                <p className="text-xs font-bold mb-2" style={{ color: '#5C3A21' }}>Tekenmateriaal</p>
+                <p className="text-xs italic mb-2" style={{ color: '#8B7355' }}>Sleep naar het diagram</p>
+                {TOOL_DEFS.map(tool => {
+                  const isPlaced = (tool.id === 'highP' && lines.highP) || (tool.id === 'lowP' && lines.lowP) || (['p1', 'p2', 'p3'].includes(tool.id) && points[tool.id]);
+                  const isDragging = dragState?.mode === 'place' && dragState?.target === tool.id;
+                  return (
+                    <div key={tool.id}
+                      onPointerDown={(e) => !isPlaced && !bootjeValidated && handleToolPointerDown(e, tool.id)}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold mb-1 transition-all select-none"
+                      style={{
+                        background: isDragging ? '#FBBF24' : (isPlaced ? 'rgba(107,142,61,0.15)' : '#FAFAF5'),
+                        color: '#2C1810',
+                        border: `2px solid ${isDragging ? '#2C1810' : (isPlaced ? '#6B8E3D' : tool.color)}`,
+                        cursor: bootjeValidated || isPlaced ? 'default' : 'grab',
+                        opacity: bootjeValidated ? 0.5 : 1,
+                        touchAction: 'none',
+                      }}>
+                      {isPlaced && <Check size={12} className="inline mr-1" style={{ color: '#6B8E3D' }} />}{tool.label}
+                    </div>
+                  );
+                })}
+                {points.p4 && (
+                  <div className="px-3 py-1.5 rounded-lg text-xs mb-1" style={{ background: 'rgba(124,58,237,0.1)', border: '2px solid #7C3AED', color: '#2C1810' }}>
+                    <Check size={12} className="inline mr-1" style={{ color: '#7C3AED' }} />Punt 4 (auto)
                   </div>
                 )}
-                {!bootjeValidated && (r3ClickPhase > 0 || lines.highP) && (
-                  <button onClick={() => handleWissen('all')}
-                    className="w-full px-3 py-1.5 rounded-lg text-xs font-bold hover:brightness-95 active:scale-95"
-                    style={{ background: 'white', color: '#B84A3D', border: '2px solid #B84A3D' }}>
-                    <Eraser size={12} className="inline mr-1" /> Opnieuw beginnen
-                  </button>
-                )}
-                {!bootjeValidated && isComplete && (
-                  <button onClick={handleValidate}
-                    className="w-full py-2 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95"
-                    style={{ background: '#6B8E3D', border: '2px solid #2C1810', boxShadow: '0 3px 0 rgba(0,0,0,0.2)' }}>
-                    Controleer bootje
-                  </button>
-                )}
               </div>
-              <R134aDiagram svgRef={svgRef} lines={lines} points={points} onDiagramClick={handleDiagramClick} activeTool={r3ClickPhase <= 1 ? 'line' : 'point'} />
-            </div>
-          ) : (
-            <div className="grid lg:grid-cols-[220px_1fr_240px] gap-3">
-              <DataPanel measurements={measurements} compact />
-              <div>
-                <R134aDiagram svgRef={svgRef} lines={lines} points={points} onDiagramClick={handleDiagramClick} activeTool={activeTool}>
-                  {[{ key: 'h1', point: points.p1, color: '#FBBF24', label: 'h1' }, { key: 'h2', point: points.p2, color: '#FBBF24', label: 'h2' }, { key: 'h3', point: points.p3, color: '#FBBF24', label: 'h3' }].map(({ key, point, color }) => {
-                    if (!validatedHKeys.has(key) || !point) return null;
-                    const x = enthalpyToX(point.h);
-                    return (
-                      <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s' }}>
-                        <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" />
-                        <rect x={x - 28} y={PLOT.bottom + 2} width="56" height="18" rx="4" fill={color} />
-                        <text x={x} y={PLOT.bottom + 14} textAnchor="middle" fontSize="11" fontWeight="800" fill="#2C1810" fontFamily="Nunito">{Math.round(point.h)}</text>
-                      </g>
-                    );
-                  })}
-                </R134aDiagram>
-              </div>
-              <div className="space-y-2">
-                <div className="bg-white rounded-xl p-3" style={{ border: '2px solid #2C1810' }}>
-                  <p className="text-xs font-bold mb-2" style={{ color: '#5C3A21' }}>Gereedschap</p>
-                  {TOOL_DEFS.map(tool => {
-                    const isActive = activeTool === tool.id;
-                    const isPlaced = (tool.id === 'highP' && lines.highP) || (tool.id === 'lowP' && lines.lowP) || (['p1', 'p2', 'p3'].includes(tool.id) && points[tool.id]);
-                    return (
-                      <button key={tool.id} onClick={() => setActiveTool(isActive ? null : tool.id)} disabled={bootjeValidated}
-                        className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-bold mb-1 transition-all disabled:opacity-50"
-                        style={{ background: isActive ? '#FBBF24' : (isPlaced ? 'rgba(107,142,61,0.15)' : '#FAFAF5'), color: '#2C1810', border: `2px solid ${isActive ? '#2C1810' : (isPlaced ? '#6B8E3D' : '#e8e0c8')}` }}>
-                        {isPlaced && !isActive && <Check size={12} className="inline mr-1" style={{ color: '#6B8E3D' }} />}{tool.label}
-                      </button>
-                    );
-                  })}
-                  {points.p4 && (
-                    <div className="px-3 py-1.5 rounded-lg text-xs mb-1" style={{ background: 'rgba(124,58,237,0.1)', border: '2px solid #7C3AED', color: '#2C1810' }}>
-                      <Check size={12} className="inline mr-1" style={{ color: '#7C3AED' }} />Punt 4 (auto)
-                    </div>
-                  )}
-                </div>
-                <button onClick={() => handleWissen('all')} disabled={bootjeValidated}
-                  className="w-full px-3 py-1.5 rounded-lg text-xs font-bold hover:brightness-95 active:scale-95 disabled:opacity-50"
-                  style={{ background: 'white', color: '#B84A3D', border: '2px solid #B84A3D' }}>
-                  <Eraser size={12} className="inline mr-1" /> Alles wissen
+              <button onClick={() => handleWissen('all')} disabled={bootjeValidated}
+                className="w-full px-3 py-1.5 rounded-lg text-xs font-bold hover:brightness-95 active:scale-95 disabled:opacity-50"
+                style={{ background: 'white', color: '#B84A3D', border: '2px solid #B84A3D' }}>
+                <Eraser size={12} className="inline mr-1" /> Alles wissen
+              </button>
+              {!bootjeValidated && isComplete && (
+                <button onClick={handleValidate}
+                  className="w-full py-2 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95"
+                  style={{ background: '#6B8E3D', border: '2px solid #2C1810', boxShadow: '0 3px 0 rgba(0,0,0,0.2)' }}>
+                  Controleer bootje
                 </button>
-                {!bootjeValidated && isComplete && (
-                  <button onClick={handleValidate}
-                    className="w-full py-2 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95"
-                    style={{ background: '#6B8E3D', border: '2px solid #2C1810', boxShadow: '0 3px 0 rgba(0,0,0,0.2)' }}>
-                    Controleer bootje
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {feedbackText && (
             <div className="mt-3 p-3 rounded-xl text-sm italic text-white" style={{ background: feedbackText.type === 'correct' ? '#6B8E3D' : '#B84A3D', animation: 'fadeInUp 0.2s' }}>
@@ -1678,10 +1725,10 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
     { key: 'h2', label: 'h2 aflezen', formula: 'h2 (uit diagram)', prompt: 'h2 ≈', correct: derived.h2, margin: 12, decimals: 0, unit: 'kJ/kg', hint: 'Beweeg de crosshair naar punt 2 en lees de enthalpie af.' },
     { key: 'h3', label: 'h3 aflezen', formula: 'h3 (uit diagram)', prompt: 'h3 ≈', correct: derived.h3, margin: 12, decimals: 0, unit: 'kJ/kg', hint: 'Beweeg de crosshair naar punt 3 en lees de enthalpie af.' },
   ];
+  // Verdamper step is verwijderd op advies Roeland — direct naar compressor + EER + COP.
   const eerSteps = [
-    { key: 'dhVerd', label: 'Verdampervermogen', formula: 'h1 − h3', prompt: `${derived.h1} − ${derived.h3} =`, correct: derived.dhVerd, margin: 5, decimals: 0, unit: 'kJ/kg', hint: 'Trek h3 af van h1.' },
     { key: 'dhComp', label: 'Compressorvermogen', formula: 'h2 − h1', prompt: `${derived.h2} − ${derived.h1} =`, correct: derived.dhComp, margin: 5, decimals: 0, unit: 'kJ/kg', hint: 'Trek h1 af van h2.' },
-    { key: 'eer', label: 'EER', formula: 'verdamper / compressor', prompt: `${derived.dhVerd} / ${derived.dhComp} =`, correct: derived.eer, margin: 0.4, decimals: 1, unit: '', hint: 'Deel het verdampervermogen door het compressorvermogen.' },
+    { key: 'eer', label: 'EER', formula: '(h1 − h3) / (h2 − h1)', prompt: `(${derived.h1} − ${derived.h3}) / (${derived.h2} − ${derived.h1}) =`, correct: derived.eer, margin: 0.4, decimals: 1, unit: '', hint: 'Deel (h1 − h3) door (h2 − h1).' },
   ];
   const copSteps = [
     { key: 'cop', label: 'COP', formula: 'EER + 1', prompt: 'EER + 1 =', correct: derived.cop, margin: 0.4, decimals: 1, unit: '', hint: 'COP is altijd EER + 1.' },
