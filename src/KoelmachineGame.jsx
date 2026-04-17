@@ -135,17 +135,20 @@ const DOME_PATH = (() => {
 const ISOTHERM_TEMPS = [-20, 0, 20, 40, 60, 80];
 
 function buildIsotherm(T) {
+  // Superheated-tak MOET consistent zijn met computePoint() / lookupTemp() (cp = 0,9),
+  // anders ligt de visuele T-curve niet waar de validatie hem verwacht.
   const sat = satAtT(T);
   const pts = [];
   if (sat.P < 50) { pts.push([sat.hL, 50]); pts.push([sat.hL, sat.P]); } else { pts.push([sat.hL, sat.P]); }
   pts.push([sat.hV, sat.P]);
-  const steps = 12;
+  const steps = 20;
   for (let i = 1; i <= steps; i++) {
     const frac = i / steps;
     const p = sat.P * Math.pow(0.5 / sat.P, frac);
     if (p < 0.5) break;
-    const dh = 2.0 * Math.log10(sat.P / p);
-    pts.push([sat.hV + dh, p]);
+    const satP = satAtP(p);
+    const h = satP.hV + 0.9 * (T - satP.T);
+    pts.push([h, p]);
   }
   return pts;
 }
@@ -1484,6 +1487,9 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
   const [hDragState, setHDragState] = useState(null);
   // Welke h-blokken zijn al "gebruikt" (in drop zones geplaatst)
   const [hDropFilled, setHDropFilled] = useState({}); // { [slotId]: hKey }
+  // Welke ovh/onk-stap is actief in M2R3 (voor diagram-overlay)
+  const [ovhOnkStep, setOvhOnkStep] = useState(null);    // 'ovh' | 'onk' | null
+  const [ovhOnkDone, setOvhOnkDone] = useState({});      // { ovh: true, onk: true }
 
   useEffect(() => {
     if (points.p3 && lines.lowP && !points.p4) setPoints(prev => ({ ...prev, p4: { h: prev.p3.h, P: lines.lowP } }));
@@ -1505,7 +1511,13 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
       const y = ((e.clientY - rect.top) / rect.height) * SVG_H;
       const inBounds = x >= PLOT.left && x <= PLOT.right && y >= PLOT.top && y <= PLOT.bottom;
       const coords = inBounds ? { h: xToEnthalpy(x), P: yToPressure(y), T: lookupTemp(xToEnthalpy(x), yToPressure(y)) } : null;
-      setDragState(ds => ds ? { ...ds, screenPos: { x: e.clientX, y: e.clientY }, coords } : null);
+      setDragState(ds => {
+        if (!ds) return null;
+        const dx = ds.startPos ? e.clientX - ds.startPos.x : 0;
+        const dy = ds.startPos ? e.clientY - ds.startPos.y : 0;
+        const moved = ds.moved || Math.hypot(dx, dy) > 5;
+        return { ...ds, screenPos: { x: e.clientX, y: e.clientY }, coords, moved };
+      });
 
       // Live reposition: update position while dragging existing element
       if (dragState.mode === 'reposition' && coords) {
@@ -1524,6 +1536,14 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
           if (t === 'highP') setLines(l => ({ ...l, highP: ds.coords.P }));
           else if (t === 'lowP') setLines(l => ({ ...l, lowP: ds.coords.P }));
           else if (['p1', 'p2', 'p3'].includes(t)) setPoints(p => ({ ...p, [t]: { h: ds.coords.h, P: ds.coords.P } }));
+        } else if (ds.mode === 'place' && !ds.moved) {
+          // Click zonder slepen → plaats direct op verwachte positie
+          const t = ds.target;
+          if (t === 'highP') setLines(l => ({ ...l, highP: measurements.highPressureAbs }));
+          else if (t === 'lowP') setLines(l => ({ ...l, lowP: measurements.lowPressureAbs }));
+          else if (t === 'p1') setPoints(p => ({ ...p, p1: { h: expected.p1.h, P: measurements.lowPressureAbs } }));
+          else if (t === 'p2') setPoints(p => ({ ...p, p2: { h: expected.p2.h, P: measurements.highPressureAbs } }));
+          else if (t === 'p3') setPoints(p => ({ ...p, p3: { h: expected.p3.h, P: measurements.highPressureAbs } }));
         }
         return null;
       });
@@ -1536,8 +1556,9 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
   const handleToolPointerDown = (e, toolId) => {
     if (bootjeValidated) return;
     e.preventDefault();
-    setDragState({ mode: 'place', target: toolId, screenPos: { x: e.clientX, y: e.clientY }, coords: null });
+    setDragState({ mode: 'place', target: toolId, screenPos: { x: e.clientX, y: e.clientY }, startPos: { x: e.clientX, y: e.clientY }, coords: null, moved: false });
   };
+
 
   const handleElementPointerDown = (target, e) => {
     if (bootjeValidated) return;
@@ -1730,12 +1751,21 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
                     </g>
                   );
                 })}
+                {mode === 'r3' && bootjeValidated && (
+                  <OvhOnkOverlay
+                    measurements={measurements}
+                    expected={expected}
+                    points={points}
+                    activeStep={ovhOnkStep}
+                    doneSteps={ovhOnkDone}
+                  />
+                )}
               </R134aDiagram>
             </div>
             <div className="space-y-2">
               <div className="bg-white rounded-xl p-3" style={{ border: '2px solid #2C1810' }}>
                 <p className="text-xs font-bold mb-2" style={{ color: '#5C3A21' }}>Tekenmateriaal</p>
-                <p className="text-xs italic mb-2" style={{ color: '#8B7355' }}>Sleep naar het diagram</p>
+                <p className="text-xs italic mb-2" style={{ color: '#8B7355' }}>Klik om direct te plaatsen, of sleep naar de juiste plek</p>
                 {TOOL_DEFS.map(tool => {
                   const isPlaced = (tool.id === 'highP' && lines.highP) || (tool.id === 'lowP' && lines.lowP) || (['p1', 'p2', 'p3'].includes(tool.id) && points[tool.id]);
                   const isDragging = dragState?.mode === 'place' && dragState?.target === tool.id;
@@ -1795,7 +1825,12 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
             />
           )}
           {bootjeValidated && mode === 'r3' && (
-            <OvhOnkCalcPanel measurements={measurements} expected={expected} onComplete={(pts) => { onComplete(pointsEarned + pts); }} onLoseLife={onLoseLife} />
+            <OvhOnkCalcPanel measurements={measurements} expected={expected}
+              onComplete={(pts) => { onComplete(pointsEarned + pts); }}
+              onLoseLife={onLoseLife}
+              onStepChange={(key) => setOvhOnkStep(key)}
+              onStepValidated={(key) => setOvhOnkDone(prev => ({ ...prev, [key]: true }))}
+            />
           )}
         </div>
       </div>
@@ -2059,8 +2094,83 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
+// OVH/ONK overlay — visuele ΔT-indicatoren op de drukllijnen in R3
+// ═══════════════════════════════════════════════════════════════
+function OvhOnkOverlay({ measurements, expected, points, activeStep, doneSteps }) {
+  // OVH: sat-damp op lowP (T_verd) tot punt 1 (T_zuig) op de LP-lijn
+  const lowP = measurements.lowPressureAbs;
+  const highP = measurements.highPressureAbs;
+  const satLow = satAtP(lowP);
+  const satHigh = satAtP(highP);
+  // Ankerpunten
+  const ovhStartH = satLow.hV;            // sat-damp bij lowP = T_verdamping
+  const ovhEndH = points.p1 ? points.p1.h : expected.p1.h; // T_zuig
+  const onkStartH = points.p3 ? points.p3.h : expected.p3.h; // T_voor_expansie
+  const onkEndH = satHigh.hL;             // sat-vloeistof bij highP = T_condensatie
+
+  const renderBand = ({ key, show, h1, h2, P, label, valueLabel, color, active, done }) => {
+    if (!show) return null;
+    const [x1, y] = hpToXY(h1, P);
+    const [x2] = hpToXY(h2, P);
+    const xMid = (x1 + x2) / 2;
+    const bracketY = y - 22;
+    const endpointColor = done ? '#6B8E3D' : color;
+    return (
+      <g key={key} style={{ animation: 'fadeInUp 0.35s ease-out' }}>
+        {/* Markers op start en eind */}
+        <circle cx={x1} cy={y} r={active ? 6 : 4.5} fill="white" stroke={endpointColor} strokeWidth="2.5">
+          {active && <animate attributeName="r" values="4.5;7;4.5" dur="1.4s" repeatCount="indefinite" />}
+        </circle>
+        <circle cx={x2} cy={y} r={active ? 6 : 4.5} fill="white" stroke={endpointColor} strokeWidth="2.5">
+          {active && <animate attributeName="r" values="4.5;7;4.5" dur="1.4s" repeatCount="indefinite" />}
+        </circle>
+        {/* Dikke band tussen start en eind */}
+        <line x1={x1} y1={y} x2={x2} y2={y} stroke={endpointColor} strokeWidth={active ? 5 : 3.5} opacity={active ? 0.85 : 0.55} strokeLinecap="round" />
+        {/* Bracket/haakje erboven */}
+        <line x1={x1} y1={y - 4} x2={x1} y2={bracketY} stroke={endpointColor} strokeWidth="1.5" />
+        <line x1={x2} y1={y - 4} x2={x2} y2={bracketY} stroke={endpointColor} strokeWidth="1.5" />
+        <line x1={x1} y1={bracketY} x2={x2} y2={bracketY} stroke={endpointColor} strokeWidth="1.5" />
+        {/* Label met ΔT */}
+        <rect x={xMid - 78} y={bracketY - 18} width="156" height="16" rx="4" fill={endpointColor} />
+        <text x={xMid} y={bracketY - 6} textAnchor="middle" fontSize="10" fontWeight="800" fill="white" fontFamily="Nunito">
+          {done ? '✓ ' : ''}{label}: {valueLabel}
+        </text>
+      </g>
+    );
+  };
+
+  const showOvh = activeStep === 'ovh' || doneSteps.ovh;
+  const showOnk = activeStep === 'onk' || doneSteps.onk;
+
+  return (
+    <g pointerEvents="none">
+      {renderBand({
+        key: 'ovh',
+        show: showOvh,
+        h1: ovhStartH, h2: ovhEndH, P: lowP,
+        label: 'ΔT_ovh',
+        valueLabel: `${measurements.T_zuigleiding} − ${measurements.T_verdamping} = ${expected.oververhitting} K`,
+        color: '#EA580C',
+        active: activeStep === 'ovh' && !doneSteps.ovh,
+        done: !!doneSteps.ovh,
+      })}
+      {renderBand({
+        key: 'onk',
+        show: showOnk,
+        h1: onkStartH, h2: onkEndH, P: highP,
+        label: 'ΔT_onk',
+        valueLabel: `${measurements.T_condensatie} − ${measurements.T_voor_expansie} = ${expected.onderkoeling} K`,
+        color: '#1E3A8A',
+        active: activeStep === 'onk' && !doneSteps.onk,
+        done: !!doneSteps.onk,
+      })}
+    </g>
+  );
+}
+
 // OvhOnk calc panel for M2R3
-function OvhOnkCalcPanel({ measurements, expected, onComplete, onLoseLife }) {
+function OvhOnkCalcPanel({ measurements, expected, onComplete, onLoseLife, onStepChange, onStepValidated }) {
   const [done, setDone] = useState(false);
   const [stepPts, setStepPts] = useState(0);
   const steps = [
@@ -2084,7 +2194,7 @@ function OvhOnkCalcPanel({ measurements, expected, onComplete, onLoseLife }) {
   return (
     <div className="mt-5 p-4 rounded-xl bg-white" style={{ border: '2px solid #2C1810', animation: 'fadeInUp 0.3s' }}>
       <h4 className="font-extrabold italic mb-3" style={{ color: '#2C1810' }}>Oververhitting & onderkoeling</h4>
-      <CalculationPanel steps={steps} onAllDone={handleAll} onLoseLife={onLoseLife} />
+      <CalculationPanel steps={steps} onAllDone={handleAll} onLoseLife={onLoseLife} onStepChange={onStepChange} onStepValidated={onStepValidated} />
       {done && (
         <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(107,142,61,0.1)', border: '2px solid #6B8E3D' }}>
           <p className="italic mb-3" style={{ color: '#2C1810', lineHeight: 1.6 }}>
