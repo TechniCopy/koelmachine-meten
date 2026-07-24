@@ -2,6 +2,46 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Calculator, Zap, Snowflake, Flame, Gauge, ArrowRight, CheckCircle, X, Check, ChevronRight, RotateCcw, Trophy, Heart, Info, Eraser, Target, Thermometer, Lightbulb, Wind, Wrench } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════
+// MOBIEL / TOUCH
+// ═══════════════════════════════════════════════════════════════
+
+// Touch-apparaat (grove aanwijzer = vinger): ruimere klikmarges
+const IS_COARSE = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+const CLICK_TOL = IS_COARSE ? 2 : 1;
+
+// Schaalfactor voor SVG-teksten op smalle schermen (diagram krimpt daar naar ~1/3)
+function useMobileScale() {
+  const [small, setSmall] = useState(() => typeof window !== 'undefined' && window.innerWidth < 550);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 550px)');
+    const handler = (e) => setSmall(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return { scale: small ? 1.8 : 1, small, coarse: IS_COARSE };
+}
+
+// Tip op telefoons in portretstand: liggend speelt prettiger
+function RotateHint() {
+  const [visible, setVisible] = useState(() => IS_COARSE && window.matchMedia('(orientation: portrait)').matches);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    if (!IS_COARSE) return;
+    const mq = window.matchMedia('(orientation: portrait)');
+    const handler = (e) => setVisible(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  if (!visible || dismissed) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold" style={{ backgroundColor: '#0D4868', color: '#fff' }}>
+      <span>Tip: draai je telefoon voor een groter speelveld</span>
+      <button onClick={() => setDismissed(true)} className="ml-2 font-bold cursor-pointer" style={{ color: '#99D3D8' }} aria-label="Sluiten">&times;</button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // SCREENS
 // ═══════════════════════════════════════════════════════════════
 
@@ -432,26 +472,26 @@ function ProgressBar({ screen, lives, score }) {
   if (info.mission === 0) return null;
   const total = info.mission === 1 ? info.totalM1 : info.totalM2;
   return (
-    <div className="flex items-center gap-3 px-4 py-2 text-sm" style={{ background: 'linear-gradient(120deg,#0D4868 0%,#1b7f96 55%,#30B5AE 100%)' }}>
-      <img src="/studium-beeldmerk.png" alt="Studium" className="h-5 w-auto" />
+    <div className="flex items-center gap-1.5 px-2 sm:gap-3 sm:px-4 py-2 text-sm" style={{ background: 'linear-gradient(120deg,#0D4868 0%,#1b7f96 55%,#30B5AE 100%)' }}>
+      <img src="/studium-beeldmerk.png" alt="Studium" className="h-4 sm:h-5 w-auto" />
       <span className="font-bold text-white">Missie {info.mission}</span>
-      <span className="text-white/40">|</span>
+      <span className="text-white/40 hidden sm:inline">|</span>
       <div className="flex gap-1">
         {Array.from({ length: total }, (_, i) => i + 1).map(r => (
           <div key={r} className={`w-3 h-3 rounded-full border-2 border-white/60 ${r <= info.round ? 'bg-white' : 'bg-transparent'}`} />
         ))}
       </div>
-      {screen.includes('_check') && <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded" style={{ background: '#99D3D8', color: '#0D4868' }}>Check</span>}
-      <div className="ml-auto flex items-center gap-3">
+      {screen.includes('_check') && <span className="ml-1 sm:ml-2 text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded" style={{ background: '#99D3D8', color: '#0D4868' }}>Check</span>}
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <div className="flex gap-0.5">
           {[1, 2, 3, 4, 5].map(h => (
-            <Heart key={h} className="w-4 h-4 transition-all duration-300"
+            <Heart key={h} className="w-3 h-3 sm:w-4 sm:h-4 transition-all duration-300"
               fill={h <= lives ? '#D92C2C' : 'transparent'}
               stroke={h <= lives ? '#D92C2C' : '#8a97a3'}
               style={{ opacity: h <= lives ? 1 : 0.3 }} />
           ))}
         </div>
-        <span className="text-white font-bold text-sm">Score: <span style={{ color: '#99D3D8' }}>{score}</span></span>
+        <span className="text-white font-bold text-sm"><span className="hidden sm:inline">Score: </span><span style={{ color: '#99D3D8' }}>{score}</span></span>
       </div>
     </div>
   );
@@ -631,6 +671,7 @@ function QuizCheck({ quizQs, maxPoints, onComplete, onLoseLife, lives }) {
 
 function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showCrosshair = true, activeTool = null, showReadout = true, svgRef, onElementPointerDown, draggableElements = false }) {
   const [crosshair, setCrosshair] = useState(null);
+  const { scale: F } = useMobileScale();
   const handleMove = (e) => {
     if (!showCrosshair) return;
     const svg = svgRef?.current;
@@ -667,31 +708,39 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
   });
 
   return (
-    <div className="relative" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
+    <div className="relative min-w-0" style={{ cursor: activeTool ? 'crosshair' : 'default' }}>
+      {/* Op smalle schermen horizontaal scrollbaar zodat het diagram groot genoeg blijft */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px] sm:min-w-0">
       <svg ref={svgRef} viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full"
-        style={{ backgroundColor: '#f8fbfc', borderRadius: 12, border: '2px solid #0D4868', maxHeight: 560 }}
-        onMouseMove={handleMove} onMouseLeave={() => setCrosshair(null)} onClick={handleClick}>
+        style={{
+          backgroundColor: '#f8fbfc', borderRadius: 12, border: '2px solid #0D4868', maxHeight: 560,
+          // Tijdens een actieve sleepactie niet laten vechten met containerscroll op touch;
+          // de versleepbare elementen zelf hebben touchAction:'none'
+          touchAction: activeTool === 'drag' ? 'none' : undefined,
+        }}
+        onPointerMove={handleMove} onPointerLeave={() => setCrosshair(null)} onClick={handleClick}>
         <rect x={PLOT.left} y={PLOT.top} width={PLOT_W} height={PLOT_H} fill="#ffffff" stroke="#0D4868" strokeWidth="1.5" />
-        {P_GRID.map(p => { const y = pressureToY(p); return <g key={`pg${p}`}><line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={PLOT.left - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{p}</text></g>; })}
-        {H_GRID.map(h => { const x = enthalpyToX(h); return <g key={`hg${h}`}><line x1={x} y1={PLOT.top} x2={x} y2={PLOT.bottom} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={x} y={PLOT.bottom + 18} textAnchor="middle" fontSize="11" fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{h}</text></g>; })}
-        <text x={30} y={SVG_H / 2} textAnchor="middle" fontSize="13" fill="#0D4868" fontWeight="700" fontFamily="Work Sans" transform={`rotate(-90, 30, ${SVG_H / 2})`}>Druk P (bar abs), log-schaal</text>
-        <text x={(PLOT.left + PLOT.right) / 2} y={SVG_H - 10} textAnchor="middle" fontSize="13" fill="#0D4868" fontWeight="700" fontFamily="Work Sans">Enthalpie h (kJ/kg)</text>
-        {ISOTHERM_PATHS.map(iso => (<g key={`iso-${iso.T}`}><path d={iso.path} fill="none" stroke="#A855F7" strokeWidth="1" strokeDasharray="3 4" opacity="0.5" /><text x={iso.labelPos.x} y={iso.labelPos.y} fontSize="9" fill="#A855F7" fontWeight="600" fontFamily="Work Sans" textAnchor="end">{iso.T}°C</text></g>))}
+        {P_GRID.map(p => { const y = pressureToY(p); return <g key={`pg${p}`}><line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={PLOT.left - 8} y={y + 4 * F} textAnchor="end" fontSize={11 * F} fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{p}</text></g>; })}
+        {H_GRID.map(h => { const x = enthalpyToX(h); return <g key={`hg${h}`}><line x1={x} y1={PLOT.top} x2={x} y2={PLOT.bottom} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={x} y={PLOT.bottom + 12 + 6 * F} textAnchor="middle" fontSize={11 * F} fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{h}</text></g>; })}
+        <text x={30} y={SVG_H / 2} textAnchor="middle" fontSize={13 * F} fill="#0D4868" fontWeight="700" fontFamily="Work Sans" transform={`rotate(-90, 30, ${SVG_H / 2})`}>Druk P (bar abs), log-schaal</text>
+        <text x={(PLOT.left + PLOT.right) / 2} y={SVG_H - 10} textAnchor="middle" fontSize={13 * F} fill="#0D4868" fontWeight="700" fontFamily="Work Sans">Enthalpie h (kJ/kg)</text>
+        {ISOTHERM_PATHS.map(iso => (<g key={`iso-${iso.T}`}><path d={iso.path} fill="none" stroke="#A855F7" strokeWidth="1" strokeDasharray="3 4" opacity="0.5" /><text x={iso.labelPos.x} y={iso.labelPos.y} fontSize={9 * F} fill="#A855F7" fontWeight="600" fontFamily="Work Sans" textAnchor="end">{iso.T}°C</text></g>))}
         <path d={DOME_PATH} fill="rgba(168, 85, 247, 0.08)" />
         <path d={LIQUID_PATH} fill="none" stroke="#3B82F6" strokeWidth="2.5" />
         <path d={VAPOR_PATH} fill="none" stroke="#EF4444" strokeWidth="2.5" />
         <circle cx={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[0]} cy={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[1]} r="5" fill="#0D4868" stroke="#fff" strokeWidth="1.5" />
-        <text x={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[0] + 10} y={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[1] - 6} fontSize="11" fontWeight="700" fill="#0D4868" fontFamily="Work Sans">K</text>
-        {lines.highP && (() => { const y = pressureToY(lines.highP); return <g style={{ cursor: draggableElements ? 'grab' : 'default' }} onPointerDown={(e) => handleElementDown(e, 'highP')}>
+        <text x={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[0] + 10} y={hpToXY(CRITICAL_POINT.h, CRITICAL_POINT.P)[1] - 6} fontSize={11 * F} fontWeight="700" fill="#0D4868" fontFamily="Work Sans">K</text>
+        {lines.highP && (() => { const y = pressureToY(lines.highP); return <g style={{ cursor: draggableElements ? 'grab' : 'default', touchAction: draggableElements ? 'none' : undefined }} onPointerDown={(e) => handleElementDown(e, 'highP')}>
           {/* Wide invisible hit area for easier grabbing */}
-          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth="18" />
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth={IS_COARSE ? 32 : 18} />
           <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#991B1B" strokeWidth="2" strokeDasharray="6 4" />
-          <text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#991B1B" fontWeight="bold" fontFamily="Work Sans">HP {fmtNum(lines.highP, 1)}</text>
+          <text x={F > 1 ? PLOT.right - 4 : PLOT.right + 4} y={y - (F > 1 ? 6 : -4)} fontSize={10 * F} fill="#991B1B" fontWeight="bold" fontFamily="Work Sans" textAnchor={F > 1 ? 'end' : 'start'}>HP {fmtNum(lines.highP, 1)}</text>
         </g>; })()}
-        {lines.lowP && (() => { const y = pressureToY(lines.lowP); return <g style={{ cursor: draggableElements ? 'grab' : 'default' }} onPointerDown={(e) => handleElementDown(e, 'lowP')}>
-          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth="18" />
+        {lines.lowP && (() => { const y = pressureToY(lines.lowP); return <g style={{ cursor: draggableElements ? 'grab' : 'default', touchAction: draggableElements ? 'none' : undefined }} onPointerDown={(e) => handleElementDown(e, 'lowP')}>
+          <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="transparent" strokeWidth={IS_COARSE ? 32 : 18} />
           <line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#1E3A8A" strokeWidth="2" strokeDasharray="6 4" />
-          <text x={PLOT.right + 4} y={y + 4} fontSize="10" fill="#1E3A8A" fontWeight="bold" fontFamily="Work Sans">LP {fmtNum(lines.lowP, 1)}</text>
+          <text x={F > 1 ? PLOT.right - 4 : PLOT.right + 4} y={y - (F > 1 ? 6 : -4)} fontSize={10 * F} fill="#1E3A8A" fontWeight="bold" fontFamily="Work Sans" textAnchor={F > 1 ? 'end' : 'start'}>LP {fmtNum(lines.lowP, 1)}</text>
         </g>; })()}
         {bootjePointPositions.p1 && bootjePointPositions.p2 && <line x1={bootjePointPositions.p1.x} y1={bootjePointPositions.p1.y} x2={bootjePointPositions.p2.x} y2={bootjePointPositions.p2.y} stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />}
         {bootjePointPositions.p2 && bootjePointPositions.p3 && <line x1={bootjePointPositions.p2.x} y1={bootjePointPositions.p2.y} x2={bootjePointPositions.p3.x} y2={bootjePointPositions.p3.y} stroke="#DC2626" strokeWidth="3" strokeLinecap="round" />}
@@ -701,10 +750,10 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
           const pt = bootjePointPositions[key];
           if (!pt) return null;
           const isDraggable = draggableElements && key !== 'p4'; // p4 is auto-placed
-          return (<g key={key} style={{ cursor: isDraggable ? 'grab' : 'default' }} onPointerDown={(e) => isDraggable && handleElementDown(e, key)}>
-            {isDraggable && <circle cx={pt.x} cy={pt.y} r="18" fill="transparent" />}
-            <circle cx={pt.x} cy={pt.y} r="10" fill="white" stroke="#0D4868" strokeWidth="2" />
-            <text x={pt.x} y={pt.y + 4} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#0D4868" fontFamily="Work Sans" pointerEvents="none">{key.substring(1)}</text>
+          return (<g key={key} style={{ cursor: isDraggable ? 'grab' : 'default', touchAction: isDraggable ? 'none' : undefined }} onPointerDown={(e) => isDraggable && handleElementDown(e, key)}>
+            {isDraggable && <circle cx={pt.x} cy={pt.y} r={IS_COARSE ? 32 : 18} fill="transparent" />}
+            <circle cx={pt.x} cy={pt.y} r={10 * (F > 1 ? 1.5 : 1)} fill="white" stroke="#0D4868" strokeWidth="2" />
+            <text x={pt.x} y={pt.y + 4 * F} textAnchor="middle" fontSize={11 * F} fontWeight="bold" fill="#0D4868" fontFamily="Work Sans" pointerEvents="none">{key.substring(1)}</text>
           </g>);
         })}
         {crosshair && showCrosshair && (
@@ -716,6 +765,8 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
         )}
         {children}
       </svg>
+        </div>
+      </div>
       {showReadout && crosshair && (
         <div className="absolute top-3 right-3 bg-white rounded-lg px-3 py-2 text-xs font-mono" style={{ border: '2px solid #0D4868', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
           <div className="flex items-center gap-1"><Thermometer size={12} style={{ color: '#D92C2C' }} /> <span style={{ color: '#0D4868', fontWeight: 700 }}>{fmtNum(crosshair.T, 0)} °C</span></div>
@@ -734,6 +785,9 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
 
 function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints = {}, highlightPointId = null }) {
   const W = 750, H = 540;
+  const { scale: F, coarse } = useMobileScale();
+  // Componentnamen iets bescheidener schalen zodat ze in hun kaders blijven passen
+  const FC = F > 1 ? 1.3 : 1;
 
   // Component positions — more spread out
   const condensor = { x: 340, y: 65, w: 180, h: 55 };
@@ -761,12 +815,12 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
     if (onPointClick) onPointClick(id);
   };
 
-  const r = 14; // measurement point radius
+  const r = coarse ? 20 : 14; // measurement point radius (groter op touch)
 
   // Render a value label at the correct position
   const renderValueLabel = (mp, pos) => {
     const dir = pos.valueDir;
-    const boxW = 68, boxH = 22;
+    const boxW = 68 * (F > 1 ? 1.4 : 1), boxH = 22 * (F > 1 ? 1.4 : 1);
     let bx, by;
     if (dir === 'right') { bx = pos.x + r + 6; by = pos.y - boxH / 2; }
     else if (dir === 'left') { bx = pos.x - r - 6 - boxW; by = pos.y - boxH / 2; }
@@ -775,7 +829,7 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
     return (
       <g style={{ animation: 'pop-in 0.3s ease-out' }}>
         <rect x={bx} y={by} width={boxW} height={boxH} rx="6" fill={mp.color} />
-        <text x={bx + boxW / 2} y={by + boxH / 2 + 4} textAnchor="middle" fontSize="11" fontWeight="800" fill="white" fontFamily="Work Sans">{mp.value}</text>
+        <text x={bx + boxW / 2} y={by + boxH / 2 + 4 * F} textAnchor="middle" fontSize={11 * F} fontWeight="800" fill="white" fontFamily="Work Sans">{mp.value}</text>
       </g>
     );
   };
@@ -789,7 +843,7 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
     else if (dir === 'above') { ly = pos.y - r - 5; }
     else if (dir === 'left') { lx = pos.x - r - 5; ly = pos.y + 4; anchor = 'end'; }
     else { lx = pos.x + r + 5; ly = pos.y + 4; anchor = 'start'; }
-    return <text x={lx} y={ly} textAnchor={anchor} fontSize="9" fontWeight="700" fill={mp.color} fontFamily="Work Sans">{mp.shortLabel}</text>;
+    return <text x={lx} y={ly} textAnchor={anchor} fontSize={9 * F} fontWeight="700" fill={mp.color} fontFamily="Work Sans">{mp.shortLabel}</text>;
   };
 
   return (
@@ -821,8 +875,8 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
       {/* Condensor */}
       <rect x={condensor.x - condensor.w / 2} y={condensor.y} width={condensor.w} height={condensor.h}
         rx="10" fill="white" stroke="#DC2626" strokeWidth="3" />
-      <text x={condensor.x} y={condensor.y + 23} textAnchor="middle" fontSize="14" fontWeight="800" fill="#DC2626" fontFamily="Work Sans">Condensor</text>
-      <text x={condensor.x} y={condensor.y + 40} textAnchor="middle" fontSize="10" fill="#DC2626" fontFamily="Work Sans" opacity="0.7">warmte afvoer</text>
+      <text x={condensor.x} y={condensor.y + 23} textAnchor="middle" fontSize={14 * FC} fontWeight="800" fill="#DC2626" fontFamily="Work Sans">Condensor</text>
+      <text x={condensor.x} y={condensor.y + 40} textAnchor="middle" fontSize={10 * FC} fill="#DC2626" fontFamily="Work Sans" opacity="0.7">warmte afvoer</text>
       <g transform={`translate(${condensor.x + condensor.w / 2 + 20}, ${condensor.y + condensor.h / 2 - 10})`}>
         <Wind size={18} style={{ color: '#DC2626' }} />
       </g>
@@ -830,8 +884,8 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
       {/* Verdamper */}
       <rect x={verdamper.x - verdamper.w / 2} y={verdamper.y} width={verdamper.w} height={verdamper.h}
         rx="10" fill="white" stroke="#0891B2" strokeWidth="3" />
-      <text x={verdamper.x} y={verdamper.y + 23} textAnchor="middle" fontSize="14" fontWeight="800" fill="#0891B2" fontFamily="Work Sans">Verdamper</text>
-      <text x={verdamper.x} y={verdamper.y + 40} textAnchor="middle" fontSize="10" fill="#0891B2" fontFamily="Work Sans" opacity="0.7">warmte opname</text>
+      <text x={verdamper.x} y={verdamper.y + 23} textAnchor="middle" fontSize={14 * FC} fontWeight="800" fill="#0891B2" fontFamily="Work Sans">Verdamper</text>
+      <text x={verdamper.x} y={verdamper.y + 40} textAnchor="middle" fontSize={10 * FC} fill="#0891B2" fontFamily="Work Sans" opacity="0.7">warmte opname</text>
       <g transform={`translate(${verdamper.x + verdamper.w / 2 + 20}, ${verdamper.y + verdamper.h / 2 - 10})`}>
         <Snowflake size={18} style={{ color: '#0891B2' }} />
       </g>
@@ -839,20 +893,20 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
       {/* Compressor */}
       <circle cx={compressor.x} cy={compressor.y} r={compressor.r}
         fill="white" stroke="#2563EB" strokeWidth="3" />
-      <text x={compressor.x} y={compressor.y - 5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#2563EB" fontFamily="Work Sans">Compressor</text>
-      <text x={compressor.x} y={compressor.y + 12} textAnchor="middle" fontSize="10" fill="#2563EB" fontFamily="Work Sans" opacity="0.7">drukverhoging</text>
+      <text x={compressor.x} y={compressor.y - 5} textAnchor="middle" fontSize={13 * FC} fontWeight="800" fill="#2563EB" fontFamily="Work Sans">Compressor</text>
+      <text x={compressor.x} y={compressor.y + 12} textAnchor="middle" fontSize={10 * FC} fill="#2563EB" fontFamily="Work Sans" opacity="0.7">drukverhoging</text>
 
       {/* Expansieventiel */}
       <rect x={expansie.x - expansie.w / 2} y={expansie.y - expansie.h / 2} width={expansie.w} height={expansie.h}
         rx="6" fill="white" stroke="#7C3AED" strokeWidth="3" />
-      <text x={expansie.x} y={expansie.y - 35} textAnchor="middle" fontSize="11" fontWeight="800" fill="#7C3AED" fontFamily="Work Sans">Expansie-</text>
-      <text x={expansie.x} y={expansie.y - 23} textAnchor="middle" fontSize="11" fontWeight="800" fill="#7C3AED" fontFamily="Work Sans">ventiel</text>
+      <text x={expansie.x} y={expansie.y - 35} textAnchor="middle" fontSize={11 * FC} fontWeight="800" fill="#7C3AED" fontFamily="Work Sans">Expansie-</text>
+      <text x={expansie.x} y={expansie.y - 23} textAnchor="middle" fontSize={11 * FC} fontWeight="800" fill="#7C3AED" fontFamily="Work Sans">ventiel</text>
       <path d={`M ${expansie.x - 12} ${expansie.y - 8} L ${expansie.x} ${expansie.y + 8} L ${expansie.x + 12} ${expansie.y - 8}`}
         fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
       {/* Gebiedslabels */}
-      <text x={520} y={pipeHP_y - 18} textAnchor="middle" fontSize="9" fill="#991B1B" fontFamily="Work Sans" fontWeight="600" opacity="0.5">HOGEDRUKZIJDE</text>
-      <text x={520} y={pipeLP_y + 26} textAnchor="middle" fontSize="9" fill="#1E3A8A" fontFamily="Work Sans" fontWeight="600" opacity="0.5">LAGEDRUKZIJDE</text>
+      <text x={520} y={pipeHP_y - 18} textAnchor="middle" fontSize={9 * FC} fill="#991B1B" fontFamily="Work Sans" fontWeight="600" opacity="0.5">HOGEDRUKZIJDE</text>
+      <text x={520} y={pipeLP_y + 26} textAnchor="middle" fontSize={9 * FC} fill="#1E3A8A" fontFamily="Work Sans" fontWeight="600" opacity="0.5">LAGEDRUKZIJDE</text>
 
       {/* ── Meetpunten ── */}
       {MEASUREMENT_POINTS.map(mp => {
@@ -864,6 +918,8 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
 
         return (
           <g key={mp.id} onClick={() => handleClick(mp.id)} style={{ cursor: 'pointer' }}>
+            {/* Onzichtbare grotere hit-cirkel: ruim tikdoel op touch */}
+            <circle cx={pos.x} cy={pos.y} r={34} fill="transparent" />
             {(isActive || isHighlight) && !isRevealed && (
               <circle cx={pos.x} cy={pos.y} r={r + 4} fill="none" stroke={mp.color} strokeWidth="2" opacity="0.6">
                 <animate attributeName="r" from={r + 2} to={r + 14} dur="1.2s" repeatCount="indefinite" />
@@ -875,9 +931,9 @@ function CoolingMachineSchematic({ onPointClick, activePointId, revealedPoints =
               stroke={mp.color} strokeWidth="2.5"
               opacity={isRevealed ? 0.9 : 1} />
             {!isRevealed ? (
-              <text x={pos.x} y={pos.y + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill={mp.color} fontFamily="Work Sans">?</text>
+              <text x={pos.x} y={pos.y + 4 * F} textAnchor="middle" fontSize={10 * F} fontWeight="800" fill={mp.color} fontFamily="Work Sans">?</text>
             ) : (
-              <text x={pos.x} y={pos.y + 5} textAnchor="middle" fontSize="11" fontWeight="800" fill="white" fontFamily="Work Sans">✓</text>
+              <text x={pos.x} y={pos.y + 5 * F} textAnchor="middle" fontSize={11 * F} fontWeight="800" fill="white" fontFamily="Work Sans">✓</text>
             )}
             {renderLabel(mp, pos)}
             {isRevealed && renderValueLabel(mp, pos)}
@@ -1035,11 +1091,15 @@ function GuidedMeasurement({ onComplete, onLoseLife, lives }) {
           </div>
 
           <div className="grid lg:grid-cols-[1fr_260px] gap-4">
-            <CoolingMachineSchematic
-              onPointClick={finished ? undefined : handlePointClick}
-              activePointId={currentStep?.id}
-              revealedPoints={revealed}
-            />
+            <div className="overflow-x-auto min-w-0">
+              <div className="min-w-[560px] sm:min-w-0">
+                <CoolingMachineSchematic
+                  onPointClick={finished ? undefined : handlePointClick}
+                  activePointId={currentStep?.id}
+                  revealedPoints={revealed}
+                />
+              </div>
+            </div>
             <div className="space-y-3">
               {currentStep && !finished && (
                 <div className="rounded-xl p-4" style={{ background: 'rgba(48,181,174,0.08)', border: '2px solid #30B5AE' }}>
@@ -1158,11 +1218,15 @@ function IndependentMeasurement({ onComplete, onLoseLife, lives }) {
           </p>
 
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
-            <CoolingMachineSchematic
-              onPointClick={handlePointClick}
-              revealedPoints={revealed}
-              highlightPointId={highlightPoint}
-            />
+            <div className="overflow-x-auto min-w-0">
+              <div className="min-w-[560px] sm:min-w-0">
+                <CoolingMachineSchematic
+                  onPointClick={handlePointClick}
+                  revealedPoints={revealed}
+                  highlightPointId={highlightPoint}
+                />
+              </div>
+            </div>
             <div className="space-y-1.5">
               <p className="text-xs font-bold mb-1" style={{ color: '#5b7280' }}>Vul de meetgegevens in:</p>
               {fields.map(field => {
@@ -1399,32 +1463,32 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
     { title: 'Stap 1: Hogedruklijn intekenen',
       desc: <><span className="font-bold not-italic">Hogedruk</span> is <span className="font-bold not-italic">{fmtNum(m.highPressureEff, 0)} bar</span> effectief.<br/>Teken de hogedruklijn in het diagram.<br/>Let op: werk met <span className="font-bold not-italic">absolute drukken</span>!</>,
       hint: 'Denk aan: absolute druk = effectieve druk + 1.',
-      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35,
+      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 * CLICK_TOL,
       apply: () => setLines(prev => ({ ...prev, highP: m.highPressureAbs })), type: 'line' },
     { title: 'Stap 2: Lagedruklijn intekenen',
       desc: <><span className="font-bold not-italic">Lagedruk</span> is <span className="font-bold not-italic">{fmtNum(m.lowPressureEff, 1)} bar</span> effectief.<br/>Teken de lagedruklijn in het diagram.</>,
       hint: 'Absolute druk = effectieve druk + 1. Dus 1,5 + 1 = 2,5 bara.',
-      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.2,
+      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.2 * CLICK_TOL,
       apply: () => setLines(prev => ({ ...prev, lowP: m.lowPressureAbs })), type: 'line' },
     { title: 'Stap 3: Punt 1 plaatsen (zuigleiding)',
       desc: <>Temperatuur zuigleiding is <span className="font-bold not-italic">{m.T_zuigleiding} °C</span>.<br/>Plaats punt 1 op het snijpunt van de {m.T_zuigleiding}°C-isotherm met de lagedruklijn.<br/>Tip: in het dampgebied loopt de isotherm niet horizontaal!</>,
       hint: 'Zoek de lagedruklijn en volg die tot de juiste temperatuur. Gebruik de crosshair-readout!',
-      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 && Math.abs(click.h - exp.p1.h) < 15,
+      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 * CLICK_TOL && Math.abs(click.h - exp.p1.h) < 15 * CLICK_TOL,
       apply: () => setPoints(prev => ({ ...prev, p1: { h: exp.p1.h, P: m.lowPressureAbs } })), type: 'point' },
     { title: 'Stap 4: Punt 2 plaatsen (uit compressor)',
       desc: <>Eindcompressietemperatuur is <span className="font-bold not-italic">{m.T_eindcompressie} °C</span>.<br/>Plaats punt 2 op het snijpunt van de {m.T_eindcompressie}°C-isotherm met de hogedruklijn.</>,
       hint: 'Volg de hogedruklijn tot de juiste temperatuur. Gebruik de readout rechtsboven.',
-      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 && Math.abs(click.h - exp.p2.h) < 15,
+      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 * CLICK_TOL && Math.abs(click.h - exp.p2.h) < 15 * CLICK_TOL,
       apply: () => setPoints(prev => ({ ...prev, p2: { h: exp.p2.h, P: m.highPressureAbs } })), type: 'point' },
     { title: 'Stap 5: Punt 3 plaatsen (voor expansieventiel)',
       desc: <>Temperatuur voor het expansieventiel is <span className="font-bold not-italic">{m.T_voor_expansie} °C</span>.<br/>Plaats punt 3 op de hogedruklijn bij deze temperatuur.<br/>Tip: in het vloeistofgebied lopen isothermen verticaal!</>,
       hint: 'Hogedruklijn, maar nu links van de vloeistoflijn!',
-      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 && Math.abs(click.h - exp.p3.h) < 12,
+      check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 * CLICK_TOL && Math.abs(click.h - exp.p3.h) < 12 * CLICK_TOL,
       apply: () => setPoints(prev => ({ ...prev, p3: { h: exp.p3.h, P: m.highPressureAbs } })), type: 'point' },
     { title: 'Stap 6: Punt 4 plaatsen (na expansie)',
       desc: <>Het expansieventiel is <span className="font-bold not-italic">isenthalp</span>.<br/>Plaats punt 4 recht onder punt 3, op de lagedruklijn.</>,
       hint: 'h4 = h3. Recht onder punt 3, op de lagedruklijn.',
-      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 && Math.abs(click.h - exp.p3.h) < 15,
+      check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 * CLICK_TOL && Math.abs(click.h - exp.p3.h) < 15 * CLICK_TOL,
       apply: () => setPoints(prev => ({ ...prev, p4: { h: exp.p3.h, P: m.lowPressureAbs } })), type: 'point' },
   ];
 
@@ -1766,7 +1830,7 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
 
           <div className="grid lg:grid-cols-[220px_1fr_240px] gap-3">
             <DataPanel measurements={measurements} compact />
-            <div>
+            <div className="min-w-0">
               <R134aDiagram
                 svgRef={svgRef}
                 lines={lines}
@@ -1782,7 +1846,7 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
                   const isDraggable = bootjeValidated;
                   const value = Math.round(point.h);
                   return (
-                    <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s', cursor: isDraggable ? 'grab' : 'default' }}
+                    <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s', cursor: isDraggable ? 'grab' : 'default', touchAction: isDraggable ? 'none' : undefined }}
                        onPointerDown={isDraggable ? (e) => handleHBlockPointerDown(e, key, value) : undefined}>
                       <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" pointerEvents="none" />
                       <rect x={x - 32} y={PLOT.bottom + 2} width="64" height="22" rx="5" fill={color} stroke={isDraggable ? '#0D4868' : 'none'} strokeWidth={isDraggable ? 1.5 : 0} />
@@ -2432,6 +2496,7 @@ export default function KoelmachineGame() {
 
   return (
     <div className="relative min-h-screen" style={{ background: '#f2f7f8' }}>
+      <RotateHint />
       {showProgress && <ProgressBar screen={screen} lives={lives} score={score} />}
       {renderScreen()}
       <DebugNav visible={debugVisible} currentScreen={screen} onNavigate={goToScreen} onClose={() => setDebugVisible(false)} />
