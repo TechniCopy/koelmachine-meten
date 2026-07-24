@@ -114,8 +114,25 @@ function hpToXY(h, P) { return [enthalpyToX(h), pressureToY(P)]; }
 const P_GRID = [0.5, 1, 2, 5, 10, 20, 50];
 const H_GRID = [140, 200, 260, 320, 380, 440, 500, 560];
 
-const LIQUID_POINTS = SAT_TABLE.map(s => [s.hL, s.P]).concat([[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
-const VAPOR_POINTS = SAT_TABLE.map(s => [s.hV, s.P]).concat([[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
+// Afgeronde top van de koepel: de getekende lijnen volgen de tabel tot 80°C en
+// gaan daarna over in een parabolische kroon naar het kritisch punt
+// (nabij het kritisch punt geldt (h - hc)^2 ~ (Pc - P), dus een wortelvorm)
+const CAP_BASE = SAT_TABLE.find(s => s.T === 80);
+function domeCap(side) {
+  const h0 = side === 'liquid' ? CAP_BASE.hL : CAP_BASE.hV;
+  const pts = [];
+  const steps = 12;
+  for (let i = 1; i < steps; i++) {
+    const f = 1 - i / steps; // gelijkmatige stappen in enthalpie, parabolisch in druk
+    const h = CRITICAL_POINT.h + (h0 - CRITICAL_POINT.h) * f;
+    const P = CAP_BASE.P + (CRITICAL_POINT.P - CAP_BASE.P) * (1 - f * f);
+    pts.push([h, P]);
+  }
+  return pts;
+}
+
+const LIQUID_POINTS = SAT_TABLE.filter(s => s.T <= 80).map(s => [s.hL, s.P]).concat(domeCap('liquid'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
+const VAPOR_POINTS = SAT_TABLE.filter(s => s.T <= 80).map(s => [s.hV, s.P]).concat(domeCap('vapor'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
 
 function pointsToPath(pts) {
   return pts.map(([h, P], i) => {
@@ -2218,24 +2235,31 @@ function OvhOnkCalcPanel({ measurements, expected, onComplete, onLoseLife, onSte
 
 function StartScreen({ onStart }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8" style={{ background: '#f2f7f8' }}>
-      <div className="text-center max-w-md" style={{ animation: 'fadeInUp 0.5s ease-out' }}>
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4" style={{ background: 'rgba(153,211,216,0.35)' }}>
-          <Gauge size={40} style={{ color: '#0D4868' }} />
-        </div>
-        <h1 className="text-4xl font-extrabold mb-1" style={{ color: '#0D4868' }}>Koelmachine Meten</h1>
-        <h2 className="text-xl font-bold italic mb-4" style={{ color: '#5b7280' }}>Van meting tot diagram</h2>
+    <div className="min-h-screen flex flex-col" style={{ background: '#f2f7f8' }}>
+      <div className="w-full h-[60px] flex items-center px-4 flex-shrink-0" style={{ background: 'linear-gradient(120deg,#0D4868 0%,#1b7f96 55%,#30B5AE 100%)' }}>
+        <img src="/studium-beeldmerk.png" alt="Studium" className="h-9 w-auto" />
+      </div>
+      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-lg" style={{ animation: 'fadeInUp 0.5s ease-out' }}>
+        <h1 className="text-4xl font-extrabold mb-2" style={{ color: '#0D4868' }}>Koelmachine Meten</h1>
+        <h2 className="text-xl font-bold italic mb-6" style={{ color: '#5b7280' }}>Van meting tot diagram</h2>
         <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <p className="italic leading-relaxed" style={{ color: '#5b7280', lineHeight: 1.7 }}>
             Meet <span className="font-bold">drukken</span> en <span className="font-bold">temperaturen</span> op een draaiende koelinstallatie. Gebruik de meetgegevens om het <span className="font-bold">bootje</span> te tekenen in een <span className="font-bold">h-log p diagram</span>. Bereken het rendement, de oververhitting en de onderkoeling.
           </p>
         </div>
-        <button onClick={onStart}
-          className="px-10 py-4 text-white rounded-2xl font-extrabold italic text-xl hover:brightness-90 active:scale-95 transition-all"
-          style={{ background: '#1E8F6E', border: '3px solid #0D4868', boxShadow: '0 4px 0 #166F56' }}>
-          Start
-        </button>
+        <div className="inline-flex items-center justify-center w-32 h-20 rounded-lg mb-6" style={{ background: '#f8fbfc', border: '2px solid #0D4868', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>
+          <Gauge size={40} style={{ color: '#0D4868' }} />
+        </div>
+        <div>
+          <button onClick={onStart}
+            className="px-10 py-4 text-white rounded-2xl font-extrabold italic text-xl hover:brightness-90 active:scale-95 transition-all"
+            style={{ background: '#1E8F6E', border: '3px solid #0D4868', boxShadow: '0 4px 0 #166F56' }}>
+            Start
+          </button>
+        </div>
         <p className="text-xs mt-3" style={{ color: '#5b7280', opacity: 0.7 }}>Tip: Ctrl+D voor snelmenu</p>
+      </div>
       </div>
     </div>
   );
