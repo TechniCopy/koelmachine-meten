@@ -635,7 +635,7 @@ function R134aDiagram({ children, lines = {}, points = {}, onDiagramClick, showC
         <rect x={PLOT.left} y={PLOT.top} width={PLOT_W} height={PLOT_H} fill="#ffffff" stroke="#0D4868" strokeWidth="1.5" />
         {P_GRID.map(p => { const y = pressureToY(p); return <g key={`pg${p}`}><line x1={PLOT.left} y1={y} x2={PLOT.right} y2={y} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={PLOT.left - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{p}</text></g>; })}
         {H_GRID.map(h => { const x = enthalpyToX(h); return <g key={`hg${h}`}><line x1={x} y1={PLOT.top} x2={x} y2={PLOT.bottom} stroke="#ddd" strokeWidth="1" strokeDasharray="4 4" /><text x={x} y={PLOT.bottom + 18} textAnchor="middle" fontSize="11" fill="#5b7280" fontFamily="Work Sans" fontWeight="600">{h}</text></g>; })}
-        <text x={30} y={SVG_H / 2} textAnchor="middle" fontSize="13" fill="#0D4868" fontWeight="700" fontFamily="Work Sans" transform={`rotate(-90, 30, ${SVG_H / 2})`}>Druk P (bar abs) — log-schaal</text>
+        <text x={30} y={SVG_H / 2} textAnchor="middle" fontSize="13" fill="#0D4868" fontWeight="700" fontFamily="Work Sans" transform={`rotate(-90, 30, ${SVG_H / 2})`}>Druk P (bar abs), log-schaal</text>
         <text x={(PLOT.left + PLOT.right) / 2} y={SVG_H - 10} textAnchor="middle" fontSize="13" fill="#0D4868" fontWeight="700" fontFamily="Work Sans">Enthalpie h (kJ/kg)</text>
         {ISOTHERM_PATHS.map(iso => (<g key={`iso-${iso.T}`}><path d={iso.path} fill="none" stroke="#A855F7" strokeWidth="1" strokeDasharray="3 4" opacity="0.5" /><text x={iso.labelPos.x} y={iso.labelPos.y} fontSize="9" fill="#A855F7" fontWeight="600" fontFamily="Work Sans" textAnchor="end">{iso.T}°C</text></g>))}
         <path d={DOME_PATH} fill="rgba(168, 85, 247, 0.08)" />
@@ -861,16 +861,16 @@ function M1IntroScreen({ onBegin }) {
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(153,211,216,0.35)' }}>
             <Gauge size={22} style={{ color: '#0D4868' }} />
           </div>
-          <h2 className="text-xl font-extrabold" style={{ color: '#0D4868' }}>Missie 1 — Meten aan de koelmachine</h2>
+          <h2 className="text-xl font-extrabold" style={{ color: '#0D4868' }}>Missie 1: Meten aan de koelmachine</h2>
         </div>
         <div className="italic leading-relaxed mb-6" style={{ color: '#5b7280', lineHeight: 1.7 }}>
           <p className="font-extrabold text-lg mb-3" style={{ color: '#0D4868' }}>De koelmachine draait. Tijd om te meten!</p>
-          <p className="mb-2">Je staat voor een draaiende koelinstallatie met R-134a. Je gaat de belangrijkste meetgegevens verzamelen:</p>
+          <p className="mb-2">Je staat voor een draaiende koelinstallatie met <span className="font-bold">R-134a</span>. Je gaat de belangrijkste <span className="font-bold">meetgegevens</span> verzamelen:</p>
           <ul className="list-disc pl-6 mb-3 space-y-0.5">
-            <li>Drukken aflezen van de manometers</li>
-            <li>Temperaturen meten op de juiste plekken</li>
+            <li><span className="font-bold">Drukken</span> aflezen van de <span className="font-bold">manometers</span></li>
+            <li><span className="font-bold">Temperaturen</span> meten op de juiste plekken</li>
           </ul>
-          <p>Deze meetgegevens heb je straks nodig om het <span className="inline-block px-2 py-0.5 font-bold rounded" style={{ background: '#99D3D8', color: '#0D4868' }}>bootje</span> in het h-log p diagram te tekenen.</p>
+          <p>Deze meetgegevens heb je straks nodig om het <span className="inline-block px-2 py-0.5 font-bold rounded" style={{ background: '#99D3D8', color: '#0D4868' }}>bootje</span> in het <span className="font-bold">h-log p diagram</span> te tekenen.</p>
         </div>
         <button onClick={onBegin}
           className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -894,13 +894,13 @@ function M2IntroScreen({ onBegin }) {
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(153,211,216,0.35)' }}>
             <Target size={22} style={{ color: '#0D4868' }} />
           </div>
-          <h2 className="text-xl font-extrabold" style={{ color: '#0D4868' }}>Missie 2 — Het R-134a diagram</h2>
+          <h2 className="text-xl font-extrabold" style={{ color: '#0D4868' }}>Missie 2: Het R-134a diagram</h2>
         </div>
         <div className="italic leading-relaxed mb-6" style={{ color: '#5b7280', lineHeight: 1.7 }}>
           <p className="font-extrabold text-lg mb-2" style={{ color: '#0D4868' }}>Nu wordt het serieus.</p>
-          <p className="mb-2">Je gaat werken in een echt h-log p diagram van koudemiddel <span className="font-bold">R-134a</span>.</p>
-          <p className="mb-2">Jouw taak: teken het bootje met de meetgegevens uit missie 1.</p>
-          <p>Vul deze goed in. Want dan lees je nauwkeurig het rendement en weet je of de machine goed draait.</p>
+          <p className="mb-2">Je gaat werken in een echt <span className="font-bold">h-log p diagram</span> van koudemiddel <span className="font-bold">R-134a</span>.</p>
+          <p className="mb-2">Jouw taak: teken het <span className="font-bold">bootje</span> met de <span className="font-bold">meetgegevens</span> uit missie 1.</p>
+          <p>Vul deze goed in. Want dan lees je nauwkeurig het <span className="font-bold">rendement</span> en weet je of de machine goed draait.</p>
         </div>
         <button onClick={onBegin}
           className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -982,8 +982,8 @@ function GuidedMeasurement({ onComplete, onLoseLife, lives }) {
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <div className="flex items-start gap-3 mb-3">
             <div>
-              <h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 1.1 — Begeleid meten</h3>
-              <p className="text-xs italic" style={{ color: '#5b7280' }}>Klik op het juiste meetpunt in het schema. De koelmachine draait!</p>
+              <h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 1.1: Begeleid meten</h3>
+              <p className="text-xs italic" style={{ color: '#5b7280' }}>Klik op het juiste <span className="font-bold">meetpunt</span> in het schema. De koelmachine draait!</p>
             </div>
             <div className="ml-auto text-right flex-shrink-0">
               <span className="text-xs font-bold" style={{ color: '#5b7280' }}>Meetpunt {Math.min(step + 1, stepDefs.length)} / {stepDefs.length}</span>
@@ -1034,7 +1034,7 @@ function GuidedMeasurement({ onComplete, onLoseLife, lives }) {
           {finished && (
             <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(30,143,110,0.1)', border: '2px solid #1E8F6E', animation: 'fadeInUp 0.3s' }}>
               <p className="italic mb-3" style={{ color: '#0D4868', lineHeight: 1.6 }}>
-                <span className="font-bold">Goed gedaan!</span> Je hebt alle meetgegevens verzameld van de draaiende koelinstallatie. Nu ga je deze gegevens zelfstandig aflezen en noteren.
+                <span className="font-bold">Goed gedaan!</span> Je hebt alle <span className="font-bold">meetgegevens</span> verzameld van de draaiende koelinstallatie. Nu ga je deze gegevens <span className="font-bold">zelfstandig aflezen</span> en noteren.
               </p>
               <button onClick={() => onComplete(pointsEarned)}
                 className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -1113,9 +1113,9 @@ function IndependentMeasurement({ onComplete, onLoseLife, lives }) {
     <div className="min-h-screen p-4" style={{ background: '#f2f7f8' }}>
       <div className="max-w-6xl mx-auto" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-          <h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 1.2 — Zelfstandig meten</h3>
+          <h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 1.2: Zelfstandig meten</h3>
           <p className="text-sm italic mb-4" style={{ color: '#5b7280' }}>
-            Klik op de meetpunten in het schema om de waarden af te lezen. Vul ze in het formulier in. <span className="font-bold">Let op: de absolute druk moet je zelf berekenen!</span>
+            Klik op de <span className="font-bold">meetpunten</span> in het schema om de waarden af te lezen. Vul ze in het formulier in. <span className="font-bold">Let op: de absolute druk moet je zelf berekenen!</span>
           </p>
 
           <div className="grid lg:grid-cols-[1fr_320px] gap-4">
@@ -1177,7 +1177,7 @@ function IndependentMeasurement({ onComplete, onLoseLife, lives }) {
           {finished && (
             <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(30,143,110,0.1)', border: '2px solid #1E8F6E', animation: 'fadeInUp 0.3s' }}>
               <p className="italic mb-3" style={{ color: '#0D4868', lineHeight: 1.6 }}>
-                <span className="font-bold">Uitstekend!</span> Alle meetgegevens zijn correct ingevuld. Met deze waardes ga je in de volgende missie het bootje tekenen in het h-log p diagram.
+                <span className="font-bold">Uitstekend!</span> Alle meetgegevens zijn correct ingevuld. Met deze waardes ga je in de volgende missie het <span className="font-bold">bootje</span> tekenen in het <span className="font-bold">h-log p diagram</span>.
               </p>
               <button onClick={() => onComplete(pointsEarned)}
                 className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -1357,32 +1357,32 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
   const MAX_ATTEMPTS = 3;
 
   const stepDefs = [
-    { title: 'Stap 1 — Hogedruklijn intekenen',
-      desc: <><span className="font-bold not-italic">Hogedruk</span> is <span className="font-bold not-italic">{fmtNum(m.highPressureEff, 0)} bar</span> effectief.<br/>Teken de hogedruklijn in het diagram.<br/>Let op: werk met absolute drukken!</>,
+    { title: 'Stap 1: Hogedruklijn intekenen',
+      desc: <><span className="font-bold not-italic">Hogedruk</span> is <span className="font-bold not-italic">{fmtNum(m.highPressureEff, 0)} bar</span> effectief.<br/>Teken de hogedruklijn in het diagram.<br/>Let op: werk met <span className="font-bold not-italic">absolute drukken</span>!</>,
       hint: 'Denk aan: absolute druk = effectieve druk + 1.',
       check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35,
       apply: () => setLines(prev => ({ ...prev, highP: m.highPressureAbs })), type: 'line' },
-    { title: 'Stap 2 — Lagedruklijn intekenen',
+    { title: 'Stap 2: Lagedruklijn intekenen',
       desc: <><span className="font-bold not-italic">Lagedruk</span> is <span className="font-bold not-italic">{fmtNum(m.lowPressureEff, 1)} bar</span> effectief.<br/>Teken de lagedruklijn in het diagram.</>,
       hint: 'Absolute druk = effectieve druk + 1. Dus 1,5 + 1 = 2,5 bara.',
       check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.2,
       apply: () => setLines(prev => ({ ...prev, lowP: m.lowPressureAbs })), type: 'line' },
-    { title: 'Stap 3 — Punt 1 plaatsen (zuigleiding)',
+    { title: 'Stap 3: Punt 1 plaatsen (zuigleiding)',
       desc: <>Temperatuur zuigleiding is <span className="font-bold not-italic">{m.T_zuigleiding} °C</span>.<br/>Plaats punt 1 op het snijpunt van de {m.T_zuigleiding}°C-isotherm met de lagedruklijn.<br/>Tip: in het dampgebied loopt de isotherm niet horizontaal!</>,
       hint: 'Zoek de lagedruklijn en volg die tot de juiste temperatuur. Gebruik de crosshair-readout!',
       check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 && Math.abs(click.h - exp.p1.h) < 15,
       apply: () => setPoints(prev => ({ ...prev, p1: { h: exp.p1.h, P: m.lowPressureAbs } })), type: 'point' },
-    { title: 'Stap 4 — Punt 2 plaatsen (uit compressor)',
+    { title: 'Stap 4: Punt 2 plaatsen (uit compressor)',
       desc: <>Eindcompressietemperatuur is <span className="font-bold not-italic">{m.T_eindcompressie} °C</span>.<br/>Plaats punt 2 op het snijpunt van de {m.T_eindcompressie}°C-isotherm met de hogedruklijn.</>,
       hint: 'Volg de hogedruklijn tot de juiste temperatuur. Gebruik de readout rechtsboven.',
       check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 && Math.abs(click.h - exp.p2.h) < 15,
       apply: () => setPoints(prev => ({ ...prev, p2: { h: exp.p2.h, P: m.highPressureAbs } })), type: 'point' },
-    { title: 'Stap 5 — Punt 3 plaatsen (voor expansieventiel)',
+    { title: 'Stap 5: Punt 3 plaatsen (voor expansieventiel)',
       desc: <>Temperatuur voor het expansieventiel is <span className="font-bold not-italic">{m.T_voor_expansie} °C</span>.<br/>Plaats punt 3 op de hogedruklijn bij deze temperatuur.<br/>Tip: in het vloeistofgebied lopen isothermen verticaal!</>,
       hint: 'Hogedruklijn, maar nu links van de vloeistoflijn!',
       check: (click) => Math.abs(click.P - m.highPressureAbs) < 0.35 && Math.abs(click.h - exp.p3.h) < 12,
       apply: () => setPoints(prev => ({ ...prev, p3: { h: exp.p3.h, P: m.highPressureAbs } })), type: 'point' },
-    { title: 'Stap 6 — Punt 4 plaatsen (na expansie)',
+    { title: 'Stap 6: Punt 4 plaatsen (na expansie)',
       desc: <>Het expansieventiel is <span className="font-bold not-italic">isenthalp</span>.<br/>Plaats punt 4 recht onder punt 3, op de lagedruklijn.</>,
       hint: 'h4 = h3. Recht onder punt 3, op de lagedruklijn.',
       check: (click) => Math.abs(click.P - m.lowPressureAbs) < 0.25 && Math.abs(click.h - exp.p3.h) < 15,
@@ -1399,7 +1399,7 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
     if (isCorrect) {
       currentStep.apply();
       setPointsEarned(p => p + (newAtt[step] <= MAX_ATTEMPTS ? SCORING.m2r1.perStep : 0));
-      setFeedbackText({ type: 'correct', text: `Goed! ${currentStep.title.split('—')[1]?.trim()} geplaatst.` });
+      setFeedbackText({ type: 'correct', text: `Goed! ${currentStep.title.split(':')[1]?.trim()} geplaatst.` });
       setTimeout(() => { setFeedbackText(null); if (step < stepDefs.length - 1) setStep(step + 1); else setFinished(true); }, 900);
     } else {
       onLoseLife?.();
@@ -1419,8 +1419,8 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
       <div className="max-w-6xl mx-auto" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <div className="flex items-start gap-3 mb-3">
-            <div><h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 2.1 — Begeleid intekenen</h3>
-              <p className="text-xs italic" style={{ color: '#5b7280' }}>Volg de stappen en klik in het diagram op de juiste plek. De crosshair toont T, P, en h.</p></div>
+            <div><h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>Ronde 2.1: Begeleid intekenen</h3>
+              <p className="text-xs italic" style={{ color: '#5b7280' }}>Volg de stappen en klik in het <span className="font-bold">diagram</span> op de juiste plek. De <span className="font-bold">crosshair</span> toont T, P, en h.</p></div>
             <div className="ml-auto text-right flex-shrink-0">
               <span className="text-xs font-bold" style={{ color: '#5b7280' }}>Stap {Math.min(step + 1, stepDefs.length)} / {stepDefs.length}</span>
               <div className="flex gap-1 mt-1">{stepDefs.map((_, i) => (<div key={i} className="w-5 h-2 rounded-full" style={{ background: i < step ? '#1E8F6E' : (i === step ? '#30B5AE' : '#dbe7ea') }} />))}</div>
@@ -1446,7 +1446,7 @@ function GuidedDrawing({ onComplete, onLoseLife, lives }) {
           {finished && (
             <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(30,143,110,0.1)', border: '2px solid #1E8F6E', animation: 'fadeInUp 0.3s' }}>
               <p className="italic mb-3" style={{ color: '#0D4868', lineHeight: 1.6 }}>
-                <span className="font-bold">Mooi werk!</span> Je hebt het bootje stap voor stap opgebouwd in een echt R-134a diagram. Onthoud: altijd +1 bar voor de absolute druk, en de isothermen lopen verschillend per gebied!
+                <span className="font-bold">Mooi werk!</span> Je hebt het bootje stap voor stap opgebouwd in een echt R-134a diagram. Onthoud: altijd <span className="font-bold">+1 bar</span> voor de <span className="font-bold">absolute druk</span>, en de <span className="font-bold">isothermen</span> lopen verschillend per gebied!
               </p>
               <button onClick={() => onComplete(pointsEarned)}
                 className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -1717,12 +1717,12 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
       <div className="max-w-7xl mx-auto" style={{ animation: 'fadeInUp 0.4s ease-out' }}>
         <div className="bg-white rounded-2xl p-5 mb-3" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <h3 className="text-lg font-extrabold mb-1" style={{ color: '#0D4868' }}>
-            {mode === 'r2' ? 'Ronde 2.2 — Zelfstandig intekenen + EER/COP' : 'Ronde 2.3 — Oververhitting & onderkoeling'}
+            {mode === 'r2' ? 'Ronde 2.2: Zelfstandig intekenen + EER/COP' : 'Ronde 2.3: Oververhitting & onderkoeling'}
           </h3>
           <p className="text-sm italic mb-4" style={{ color: '#5b7280' }}>
             {mode === 'r2'
-              ? 'Je kent de aanpak nu. Hier staan alle gegevens. Sleep de lijnen en punten uit het tekenmateriaal op de grafiek. Je kunt ze daarna slepen om ze te corrigeren.'
-              : 'Andere installatie, andere gegevens. Sleep de lijnen en punten uit het tekenmateriaal op de grafiek. Je kunt ze altijd nog corrigeren door ze te verslepen.'}
+              ? <>Je kent de aanpak nu. Hier staan alle gegevens. <span className="font-bold">Sleep</span> de lijnen en punten uit het <span className="font-bold">tekenmateriaal</span> op de grafiek. Je kunt ze daarna slepen om ze te corrigeren.</>
+              : <>Andere installatie, andere gegevens. <span className="font-bold">Sleep</span> de lijnen en punten uit het <span className="font-bold">tekenmateriaal</span> op de grafiek. Je kunt ze altijd nog corrigeren door ze te verslepen.</>}
           </p>
 
           <div className="grid lg:grid-cols-[220px_1fr_240px] gap-3">
@@ -1978,7 +1978,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
       {(phase === 'eer' || done) && (
         <div className="p-4 rounded-xl bg-white" style={{ border: '2px solid #0D4868', animation: 'fadeInUp 0.3s' }}>
           <h4 className="font-extrabold italic mb-1" style={{ color: '#0D4868' }}>Compressorvermogen & EER</h4>
-          <p className="text-xs italic mb-3" style={{ color: '#5b7280' }}>Sleep de blauwe h-blokken uit de grafiek in de juiste vakjes.</p>
+          <p className="text-xs italic mb-3" style={{ color: '#5b7280' }}>Sleep de blauwe <span className="font-bold">h-blokken</span> uit de grafiek in de juiste vakjes.</p>
 
           <DropFormulaStep
             stepKey="dhComp"
@@ -2082,7 +2082,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
       {done && (
         <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(30,143,110,0.1)', border: '2px solid #1E8F6E' }}>
           <p className="italic mb-3" style={{ color: '#0D4868', lineHeight: 1.6 }}>
-            <span className="font-bold">Knap werk!</span> Deze installatie heeft een EER van ongeveer {fmtNum(derived.eer, 1)} en een COP van {fmtNum(derived.cop, 1)} — een degelijk rendement voor een koel- of warmtepompinstallatie.
+            <span className="font-bold">Knap werk!</span> Deze installatie heeft een <span className="font-bold">EER</span> van ongeveer {fmtNum(derived.eer, 1)} en een <span className="font-bold">COP</span> van {fmtNum(derived.cop, 1)}, een degelijk rendement voor een koel- of warmtepompinstallatie.
           </p>
           <button onClick={() => onComplete(stepPts)}
             className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -2199,7 +2199,7 @@ function OvhOnkCalcPanel({ measurements, expected, onComplete, onLoseLife, onSte
       {done && (
         <div className="mt-4 p-3 rounded-xl" style={{ background: 'rgba(30,143,110,0.1)', border: '2px solid #1E8F6E' }}>
           <p className="italic mb-3" style={{ color: '#0D4868', lineHeight: 1.6 }}>
-            <span className="font-bold">Top!</span> De oververhitting is {expected.oververhitting} K — dat betekent dat het koudemiddel {expected.oververhitting} graden "extra" wordt opgewarmd na volledige verdamping. De onderkoeling is {expected.onderkoeling} K. Beide zijn belangrijk voor veilige en efficiënte werking.
+            <span className="font-bold">Top!</span> De <span className="font-bold">oververhitting</span> is {expected.oververhitting} K. Dat betekent dat het koudemiddel {expected.oververhitting} graden "extra" wordt opgewarmd na volledige verdamping. De <span className="font-bold">onderkoeling</span> is {expected.onderkoeling} K. Beide zijn belangrijk voor veilige en efficiënte werking.
           </p>
           <button onClick={() => onComplete(stepPts)}
             className="w-full py-3 text-white rounded-xl font-bold italic hover:brightness-90 active:scale-95 flex items-center justify-center gap-2"
@@ -2227,7 +2227,7 @@ function StartScreen({ onStart }) {
         <h2 className="text-xl font-bold italic mb-4" style={{ color: '#5b7280' }}>Van meting tot diagram</h2>
         <div className="bg-white rounded-2xl p-6 mb-6" style={{ border: '2px solid #0D4868', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
           <p className="italic leading-relaxed" style={{ color: '#5b7280', lineHeight: 1.7 }}>
-            Meet drukken en temperaturen op een draaiende koelinstallatie. Gebruik de meetgegevens om het bootje te tekenen in een h-log p diagram. Bereken het rendement, de oververhitting en de onderkoeling.
+            Meet <span className="font-bold">drukken</span> en <span className="font-bold">temperaturen</span> op een draaiende koelinstallatie. Gebruik de meetgegevens om het <span className="font-bold">bootje</span> te tekenen in een <span className="font-bold">h-log p diagram</span>. Bereken het rendement, de oververhitting en de onderkoeling.
           </p>
         </div>
         <button onClick={onStart}
