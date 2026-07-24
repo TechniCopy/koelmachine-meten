@@ -394,6 +394,7 @@ function ProgressBar({ screen, lives, score }) {
   const total = info.mission === 1 ? info.totalM1 : info.totalM2;
   return (
     <div className="flex items-center gap-3 px-4 py-2 text-sm" style={{ background: 'linear-gradient(120deg,#0D4868 0%,#1b7f96 55%,#30B5AE 100%)' }}>
+      <img src="/studium-beeldmerk.png" alt="Studium" className="h-5 w-auto" />
       <span className="font-bold text-white">Missie {info.mission}</span>
       <span className="text-white/40">|</span>
       <div className="flex gap-1">
