@@ -131,8 +131,30 @@ function domeCap(side) {
   return pts;
 }
 
-const LIQUID_POINTS = SAT_TABLE.filter(s => s.T <= 80).map(s => [s.hL, s.P]).concat(domeCap('liquid'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
-const VAPOR_POINTS = SAT_TABLE.filter(s => s.T <= 80).map(s => [s.hV, s.P]).concat(domeCap('vapor'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]);
+// Catmull-Rom spline door alle punten (in h/log-P ruimte, passend bij de log-as):
+// gaat exact door elk punt maar middelt de raaklijnen, zodat er geen knikken zijn
+function smoothLine(pts, subdiv = 6) {
+  const cp = pts.map(([h, p]) => [h, Math.log10(p)]);
+  const out = [];
+  for (let i = 0; i < cp.length - 1; i++) {
+    const p0 = cp[i - 1] || cp[i], p1 = cp[i], p2 = cp[i + 1], p3 = cp[i + 2] || cp[i + 1];
+    for (let j = 0; j < subdiv; j++) {
+      const t = j / subdiv, t2 = t * t, t3 = t2 * t;
+      const h = 0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3);
+      const lp = 0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3);
+      out.push([h, Math.pow(10, lp)]);
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+// Controlepunten voor het tekenen: alleen de regelmatig verdeelde temperaturen,
+// anders geeft de spline overshoot bij dicht-op-elkaar-liggende hulppunten (1, 32, 36°C)
+const DRAW_TEMPS = new Set([-40, -30, -20, -10, 0, 10, 20, 30, 40, 50, 60, 70, 80]);
+
+const LIQUID_POINTS = smoothLine(SAT_TABLE.filter(s => DRAW_TEMPS.has(s.T)).map(s => [s.hL, s.P]).concat(domeCap('liquid'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]));
+const VAPOR_POINTS = smoothLine(SAT_TABLE.filter(s => DRAW_TEMPS.has(s.T)).map(s => [s.hV, s.P]).concat(domeCap('vapor'), [[CRITICAL_POINT.h, CRITICAL_POINT.P]]));
 
 function pointsToPath(pts) {
   return pts.map(([h, P], i) => {
