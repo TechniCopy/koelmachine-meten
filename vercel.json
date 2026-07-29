@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://huiswerk-studium.vercel.app/?spel=koelmachine-meten",
+      "permanent": false
+    }
+  ]
+}
