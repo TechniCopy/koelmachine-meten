@@ -1589,6 +1589,8 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
   const [dragState, setDragState] = useState(null);
   // Drag state voor blauwe h-blokken: { hKey: 'h1'|'h2'|'h3', value: number, screenPos: {x,y} }
   const [hDragState, setHDragState] = useState(null);
+  // Tik-selectie voor blauwe h-blokken (tik-tik alternatief voor slepen): { hKey, value } | null
+  const [hSelected, setHSelected] = useState(null);
   // Welke h-blokken zijn al "gebruikt" (in drop zones geplaatst)
   const [hDropFilled, setHDropFilled] = useState({}); // { [slotId]: hKey }
   // Welke ovh/onk-stap is actief in M2R3 (voor diagram-overlay)
@@ -1677,6 +1679,42 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
     setHDragState({ hKey, value, screenPos: { x: e.clientX, y: e.clientY } });
   };
 
+  // Gedeelde verwerking voor het plaatsen van een h-blok in een slot (drag én tik-tik)
+  const applyHBlockToSlot = (hKey, value, slotId, expectedKey) => {
+    if (expectedKey === hKey) {
+      // Correct drop
+      setHDropFilled(prev => ({ ...prev, [slotId]: { hKey, value, status: 'correct' } }));
+    } else {
+      // Wrong drop - brief red flash
+      setHDropFilled(prev => ({ ...prev, [slotId]: { hKey, value, status: 'wrong' } }));
+      onLoseLife?.();
+      setTimeout(() => {
+        setHDropFilled(prev => {
+          const copy = { ...prev };
+          if (copy[slotId]?.status === 'wrong') delete copy[slotId];
+          return copy;
+        });
+      }, 900);
+    }
+  };
+
+  // Tik op een h-blok in de grafiek: selectie aan/uit (alternatief voor slepen)
+  const handleHBlockClick = (hKey, value) => {
+    if (!bootjeValidated) return;
+    setHSelected(sel => (sel && sel.hKey === hKey) ? null : { hKey, value });
+  };
+
+  // Tik op een formule-vakje terwijl een h-blok geselecteerd is
+  const handleHSlotClick = (slotId, expectedKey) => {
+    if (!hSelected) return;
+    applyHBlockToSlot(hSelected.hKey, hSelected.value, slotId, expectedKey);
+    setHSelected(null);
+  };
+
+  // Selectie resetten bij rondewissel of zolang de blokken er niet zijn
+  useEffect(() => { setHSelected(null); }, [mode]);
+  useEffect(() => { if (!bootjeValidated) setHSelected(null); }, [bootjeValidated]);
+
   // Global pointer handlers voor h-block drag
   useEffect(() => {
     if (!hDragState) return;
@@ -1690,21 +1728,8 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
       if (dropEl && hDragState) {
         const slotId = dropEl.dataset.hDropSlot;
         const expectedKey = dropEl.dataset.hDropExpected;
-        if (expectedKey === hDragState.hKey) {
-          // Correct drop
-          setHDropFilled(prev => ({ ...prev, [slotId]: { hKey: hDragState.hKey, value: hDragState.value, status: 'correct' } }));
-        } else {
-          // Wrong drop - brief red flash
-          setHDropFilled(prev => ({ ...prev, [slotId]: { hKey: hDragState.hKey, value: hDragState.value, status: 'wrong' } }));
-          onLoseLife?.();
-          setTimeout(() => {
-            setHDropFilled(prev => {
-              const copy = { ...prev };
-              if (copy[slotId]?.status === 'wrong') delete copy[slotId];
-              return copy;
-            });
-          }, 900);
-        }
+        applyHBlockToSlot(hDragState.hKey, hDragState.value, slotId, expectedKey);
+        setHSelected(null);
       }
       setHDragState(null);
     };
@@ -1845,11 +1870,16 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
                   const x = enthalpyToX(point.h);
                   const isDraggable = bootjeValidated;
                   const value = Math.round(point.h);
+                  const isSelected = hSelected?.hKey === key;
                   return (
                     <g key={`hguide-${key}`} style={{ animation: 'fadeInUp 0.3s', cursor: isDraggable ? 'grab' : 'default', touchAction: isDraggable ? 'none' : undefined }}
-                       onPointerDown={isDraggable ? (e) => handleHBlockPointerDown(e, key, value) : undefined}>
+                       onPointerDown={isDraggable ? (e) => handleHBlockPointerDown(e, key, value) : undefined}
+                       onClick={isDraggable ? () => handleHBlockClick(key, value) : undefined}>
                       <line x1={x} y1={pressureToY(point.P)} x2={x} y2={PLOT.bottom} stroke={color} strokeWidth="2" strokeDasharray="5 3" pointerEvents="none" />
-                      <rect x={x - 32} y={PLOT.bottom + 2} width="64" height="22" rx="5" fill={color} stroke={isDraggable ? '#0D4868' : 'none'} strokeWidth={isDraggable ? 1.5 : 0} />
+                      {isSelected && (
+                        <rect x={x - 35} y={PLOT.bottom - 1} width="70" height="28" rx="7" fill="none" stroke="#30B5AE" strokeWidth="3" opacity="0.55" pointerEvents="none" />
+                      )}
+                      <rect x={x - 32} y={PLOT.bottom + 2} width="64" height="22" rx="5" fill={color} stroke={isDraggable ? '#0D4868' : 'none'} strokeWidth={isSelected ? 2.5 : (isDraggable ? 1.5 : 0)} />
                       <text x={x} y={PLOT.bottom + 12} textAnchor="middle" fontSize="9" fontWeight="700" fill="#0D4868" fontFamily="Work Sans" pointerEvents="none">{key}</text>
                       <text x={x} y={PLOT.bottom + 21} textAnchor="middle" fontSize="10" fontWeight="800" fill="#0D4868" fontFamily="Work Sans" pointerEvents="none">{value}</text>
                     </g>
@@ -1924,7 +1954,8 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
               onLoseLife={onLoseLife}
               onHValidated={(key) => setValidatedHKeys(prev => new Set([...prev, key]))}
               hDropFilled={hDropFilled}
-              hDragActive={!!hDragState}
+              hDragActive={!!hDragState || !!hSelected}
+              onHSlotClick={handleHSlotClick}
               onResetSlots={() => setHDropFilled({})}
             />
           )}
@@ -1946,7 +1977,7 @@ function FreeDrawing({ measurements, expected, mode, onComplete, onLoseLife, liv
 // DROP SLOT — target voor drag-and-drop van blauwe h-blokken
 // ═══════════════════════════════════════════════════════════════
 
-function HDropSlot({ slotId, expectedKey, hDropFilled, hDragActive }) {
+function HDropSlot({ slotId, expectedKey, hDropFilled, hDragActive, onHSlotClick }) {
   const filled = hDropFilled[slotId];
   const isCorrect = filled && filled.status === 'correct';
   const isWrong = filled && filled.status === 'wrong';
@@ -1962,7 +1993,9 @@ function HDropSlot({ slotId, expectedKey, hDropFilled, hDragActive }) {
     <span
       data-h-drop-slot={slotId}
       data-h-drop-expected={expectedKey}
+      onClick={() => onHSlotClick?.(slotId, expectedKey)}
       style={{
+        cursor: hDragActive && !isCorrect ? 'pointer' : 'default',
         display: 'inline-block',
         minWidth: 56,
         minHeight: 26,
@@ -1986,7 +2019,7 @@ function HDropSlot({ slotId, expectedKey, hDropFilled, hDragActive }) {
 }
 
 // Formule-regel met drop slots en resultaat
-function DropFormulaStep({ label, slots, template, compute, correct, margin, unit, decimals, hDropFilled, hDragActive, onComplete, stepKey }) {
+function DropFormulaStep({ label, slots, template, compute, correct, margin, unit, decimals, hDropFilled, hDragActive, onHSlotClick, onComplete, stepKey }) {
   const allFilled = slots.every(s => {
     const f = hDropFilled[s.id];
     return f && f.status === 'correct';
@@ -2014,7 +2047,7 @@ function DropFormulaStep({ label, slots, template, compute, correct, margin, uni
         {template.map((part, i) => {
           if (typeof part === 'string') return <span key={i}>{part}</span>;
           // part is { slot: id, expected: hKey }
-          return <HDropSlot key={i} slotId={part.slot} expectedKey={part.expected} hDropFilled={hDropFilled} hDragActive={hDragActive} />;
+          return <HDropSlot key={i} slotId={part.slot} expectedKey={part.expected} hDropFilled={hDropFilled} hDragActive={hDragActive} onHSlotClick={onHSlotClick} />;
         })}
         {allFilled && (
           <span className="ml-2 font-bold" style={{ color: completed ? '#1E8F6E' : '#5b7280' }}>
@@ -2027,7 +2060,7 @@ function DropFormulaStep({ label, slots, template, compute, correct, margin, uni
 }
 
 // EER+COP calc panel for M2R2
-function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidated, hDropFilled, hDragActive, onResetSlots }) {
+function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidated, hDropFilled, hDragActive, onHSlotClick, onResetSlots }) {
   const [done, setDone] = useState(false);
   const [stepPts, setStepPts] = useState(0);
   const [phase, setPhase] = useState('aflezen');
@@ -2081,7 +2114,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
       {(phase === 'eer' || done) && (
         <div className="p-4 rounded-xl bg-white" style={{ border: '2px solid #0D4868', animation: 'fadeInUp 0.3s' }}>
           <h4 className="font-extrabold italic mb-1" style={{ color: '#0D4868' }}>Compressorvermogen & EER</h4>
-          <p className="text-xs italic mb-3" style={{ color: '#5b7280' }}>Sleep de blauwe <span className="font-bold">h-blokken</span> uit de grafiek in de juiste vakjes.</p>
+          <p className="text-xs italic mb-3" style={{ color: '#5b7280' }}>Sleep de blauwe <span className="font-bold">h-blokken</span> uit de grafiek in de juiste vakjes, of tik eerst een blok en dan het vakje aan.</p>
 
           <DropFormulaStep
             stepKey="dhComp"
@@ -2099,6 +2132,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
             unit="kJ/kg"
             hDropFilled={hDropFilled}
             hDragActive={hDragActive}
+            onHSlotClick={onHSlotClick}
             onComplete={handleDropStepComplete}
           />
 
@@ -2129,6 +2163,7 @@ function EerCopCalcPanel({ expected, derived, onComplete, onLoseLife, onHValidat
             unit=""
             hDropFilled={hDropFilled}
             hDragActive={hDragActive}
+            onHSlotClick={onHSlotClick}
             onComplete={handleDropStepComplete}
           />
 
